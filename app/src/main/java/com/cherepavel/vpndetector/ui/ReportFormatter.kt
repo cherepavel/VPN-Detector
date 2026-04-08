@@ -16,6 +16,8 @@ data class DetectionReport(
     val transportSubtitle: String,
     val transportAnyValue: String,
     val transportActiveValue: String,
+    val transportAnyDetected: Boolean,
+    val transportActiveDetected: Boolean,
 
     val apiSignals: List<SignalItem>,
     val nativeSignal: SignalItem,
@@ -166,24 +168,42 @@ object ReportFormatter {
                 append("\n\n--- VPN permission ---\n")
                 append("This app holds Android VPN permission (anomalous for a detector).")
             }
+            if (snapshot.lockdownLikely) {
+                append("\n\n--- Always-on / lockdown ---\n")
+                append("VPN present and no validated non-VPN path exists. Lockdown mode is likely active.")
+            }
+            if (snapshot.knownVpnDnsMatches.isNotEmpty()) {
+                append("\n\n--- Known VPN provider DNS ---\n")
+                append(snapshot.knownVpnDnsMatches.joinToString("\n"))
+            }
+            if (snapshot.localProxies.isNotEmpty()) {
+                append("\n\n--- Local proxy ports (no VpnService) ---\n")
+                append(snapshot.localProxies.joinToString("\n"))
+            }
+            if (snapshot.workProfileCount > 1 || snapshot.isManagedProfile) {
+                append("\n\n--- Work / managed profile ---\n")
+                if (snapshot.isManagedProfile) {
+                    append("Running inside a managed profile.\n")
+                }
+                if (snapshot.workProfileCount > 1) {
+                    append("${snapshot.workProfileCount} user profiles detected. VPN apps in other profiles are not visible to this detector.")
+                }
+            }
         }
 
-        val dynamicUnknown = snapshot.dynamicVpnApps.filter { pkg ->
-            snapshot.installedVpnApps.none { it.contains(pkg) }
-        }
         val appsText = buildString {
-            if (snapshot.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
+            if (snapshot.installedVpnApps.isEmpty() && snapshot.unknownDynamicApps.isEmpty()) {
                 append("No VPN-related apps detected.")
             } else {
                 snapshot.installedVpnApps.forEach { appendLine("• $it") }
-                if (dynamicUnknown.isNotEmpty()) {
+                if (snapshot.unknownDynamicApps.isNotEmpty()) {
                     if (snapshot.installedVpnApps.isNotEmpty()) appendLine()
                     appendLine("Detected via VpnService query:")
-                    dynamicUnknown.forEach { appendLine("• $it") }
+                    snapshot.unknownDynamicApps.forEach { appendLine("• $it") }
                 }
             }
             if (snapshot.trackedAppsErrors.isNotEmpty()) {
-                if (snapshot.installedVpnApps.isNotEmpty() || dynamicUnknown.isNotEmpty()) appendLine()
+                if (snapshot.installedVpnApps.isNotEmpty() || snapshot.unknownDynamicApps.isNotEmpty()) appendLine()
                 appendLine("Check errors (package manager returned unexpected error):")
                 snapshot.trackedAppsErrors.forEach { (pkg, err) -> appendLine("• $pkg: $err") }
             }
@@ -200,6 +220,8 @@ object ReportFormatter {
             transportSubtitle = overall.transportSubtitle,
             transportAnyValue = if (anyVpn) "DETECTED" else "NOT DETECTED",
             transportActiveValue = if (activeVpn) "DETECTED" else "NOT DETECTED",
+            transportAnyDetected = anyVpn,
+            transportActiveDetected = activeVpn,
 
             apiSignals = apiSignals,
             nativeSignal = nativeSignal,
@@ -225,9 +247,10 @@ object ReportFormatter {
         val scoreText = "Confidence: $confidenceText (${snapshot.assessment.score}/100)."
         return when {
             snapshot.assessment.status == DetectionStatus.ACTIVE_VPN || activeVpn -> {
+                val lockdownNote = if (snapshot.lockdownLikely) " Lockdown mode appears active — no non-VPN path is validated." else ""
                 OverallBlock(
-                    title = "VPN detected",
-                    summary = "The active network is explicitly marked as VPN by Android.",
+                    title = if (snapshot.lockdownLikely) "VPN detected (lockdown)" else "VPN detected",
+                    summary = "The active network is explicitly marked as VPN by Android.$lockdownNote",
                     explanation = "This is the strongest signal in the app: Android reports TRANSPORT_VPN on the network currently in use. $scoreText",
                     state = SignalState.POSITIVE,
                     transportState = SignalState.POSITIVE,

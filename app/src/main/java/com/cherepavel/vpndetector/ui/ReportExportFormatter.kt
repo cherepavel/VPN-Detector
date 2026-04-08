@@ -139,23 +139,44 @@ object ReportExportFormatter {
             appendLine()
 
             appendLine("=== DETECTED VPN APPS ===")
-            val dynamicUnknown = snapshot.dynamicVpnApps.filter { pkg ->
-                snapshot.installedVpnApps.none { it.contains(pkg) }
-            }
             if (snapshot.installedVpnApps.isNotEmpty()) {
                 appendLine("From tracked list:")
                 snapshot.installedVpnApps.forEach { appendLine("- $it") }
             }
-            if (dynamicUnknown.isNotEmpty()) {
+            if (snapshot.unknownDynamicApps.isNotEmpty()) {
                 appendLine("Detected via VpnService query:")
-                dynamicUnknown.forEach { appendLine("- $it") }
+                snapshot.unknownDynamicApps.forEach { appendLine("- $it") }
             }
             if (snapshot.trackedAppsErrors.isNotEmpty()) {
                 appendLine("Check errors:")
                 snapshot.trackedAppsErrors.forEach { (pkg, err) -> appendLine("- $pkg: $err") }
             }
-            if (snapshot.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
+            if (snapshot.installedVpnApps.isEmpty() && snapshot.unknownDynamicApps.isEmpty()) {
                 appendLine("No VPN-related apps detected.")
+            }
+
+            if (snapshot.lockdownLikely || snapshot.knownVpnDnsMatches.isNotEmpty() ||
+                snapshot.localProxies.isNotEmpty() || snapshot.workProfileCount > 1 ||
+                snapshot.isManagedProfile) {
+                appendLine()
+                appendLine("=== ADVANCED SIGNALS ===")
+                if (snapshot.lockdownLikely) {
+                    appendLine("Always-on lockdown: likely (no validated non-VPN path exists).")
+                }
+                if (snapshot.knownVpnDnsMatches.isNotEmpty()) {
+                    appendLine("Known VPN provider DNS:")
+                    snapshot.knownVpnDnsMatches.forEach { appendLine("- $it") }
+                }
+                if (snapshot.localProxies.isNotEmpty()) {
+                    appendLine("Local proxy ports (no VpnService):")
+                    snapshot.localProxies.forEach { appendLine("- $it") }
+                }
+                if (snapshot.workProfileCount > 1) {
+                    appendLine("Work profile: ${snapshot.workProfileCount} user profiles detected. VPN apps in other profiles are not visible.")
+                }
+                if (snapshot.isManagedProfile) {
+                    appendLine("Running inside a managed profile.")
+                }
             }
         }.trim()
     }

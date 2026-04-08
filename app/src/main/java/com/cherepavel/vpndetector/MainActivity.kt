@@ -24,6 +24,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cherepavel.vpndetector.detector.DetectionEngine
+import com.cherepavel.vpndetector.detector.IDetectionEngine
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
@@ -90,7 +91,7 @@ class MainActivity : AppCompatActivity() {
     private val connectivityManager by lazy {
         getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     }
-    private val detectionEngine by lazy { DetectionEngine(this, connectivityManager) }
+    private val detectionEngine: IDetectionEngine by lazy { DetectionEngine(this, connectivityManager) }
 
     private var lastExportText: String = ""
     private var detectionJob: Job? = null
@@ -230,12 +231,14 @@ class MainActivity : AppCompatActivity() {
     private fun refreshUi() {
         detectionJob?.cancel()
         buttonRefresh.isEnabled = false
+        buttonReport.isEnabled = false
         detectionJob = lifecycleScope.launch {
             val output = withContext(Dispatchers.IO) { runDetection() }
             renderReport(output.report)
             renderLastUpdate()
             lastExportText = output.exportText
             buttonRefresh.isEnabled = true
+            buttonReport.isEnabled = true
         }
     }
 
@@ -289,7 +292,7 @@ class MainActivity : AppCompatActivity() {
         textVpnExplanation.text = report.overallExplanation
 
         applySectionCardBackground(cardStatus)
-        applyStatusTextColor(textVpnStatus, report.overallState)
+        applyValueTextColor(textVpnStatus, report.overallState)
 
         textTransportState.text = report.transportStateText
         textTransportSubtitle.text = report.transportSubtitle
@@ -301,11 +304,11 @@ class MainActivity : AppCompatActivity() {
 
         applyTransportBadgeBackground(
             view = textTransportAnyValue,
-            isDetected = report.transportAnyValue == "DETECTED"
+            isDetected = report.transportAnyDetected
         )
         applyTransportBadgeBackground(
             view = textTransportActiveValue,
-            isDetected = report.transportActiveValue == "DETECTED"
+            isDetected = report.transportActiveDetected
         )
 
         renderApiSignals(report.apiSignals)
@@ -429,10 +432,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyValueTextColor(view: TextView, state: SignalState) {
-        view.setTextColor(state.toSignalColor())
-    }
-
-    private fun applyStatusTextColor(view: TextView, state: SignalState) {
         view.setTextColor(state.toSignalColor())
     }
 

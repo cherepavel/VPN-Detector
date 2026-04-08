@@ -25,17 +25,19 @@ data class ProxyDetectionResult(
     }
 }
 
-class ProxyDetector(private val context: Context) {
+class ProxyDetector(
+    private val context: Context,
+    private val connectivityManager: ConnectivityManager =
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+) {
 
     fun detect(): ProxyDetectionResult {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
         @Suppress("DEPRECATION")
-        val systemProxy = cm.defaultProxy?.toSummary()
+        val systemProxy = connectivityManager.defaultProxy?.toSummary()
 
-        val activeNetwork = cm.activeNetwork
+        val activeNetwork = connectivityManager.activeNetwork
         val networkProxy = activeNetwork
-            ?.let(cm::getLinkProperties)
+            ?.let(connectivityManager::getLinkProperties)
             ?.httpProxy
             ?.toSummary()
 

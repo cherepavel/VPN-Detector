@@ -65,5 +65,13 @@ data class DetectionSnapshot(
     val vpnBandwidthSummary: String?,
     val nativeError: String?,
     val trackedAppsErrors: Map<String, String>,
+    val lockdownLikely: Boolean,
+    val knownVpnDnsMatches: List<String>,
+    val localProxies: List<String>,
+    val workProfileCount: Int,
+    val isManagedProfile: Boolean,
     val assessment: DetectionAssessment
-)
+) {
+    val unknownDynamicApps: List<String>
+        get() = dynamicVpnApps.filter { pkg -> installedVpnApps.none { it.contains(pkg) } }
+}

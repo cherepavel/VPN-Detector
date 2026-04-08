@@ -1,5 +1,10 @@
 package com.cherepavel.vpndetector.detector
 
+data class KernelRoutesResult(
+    val routes: List<String>,
+    val error: String? = null
+)
+
 object IfconfigTermuxLikeDetector {
 
     private var libraryLoaded = false
@@ -52,21 +57,21 @@ object IfconfigTermuxLikeDetector {
         )
     }
 
-    fun detectKernelRoutes(): List<String> {
-        if (!libraryLoaded) return emptyList()
+    fun detectKernelRoutes(): KernelRoutesResult {
+        if (!libraryLoaded) return KernelRoutesResult(emptyList(), "Native library failed to load")
         return try {
-            getKernelRoutesNative().toList()
-        } catch (_: Throwable) {
-            emptyList()
+            KernelRoutesResult(getKernelRoutesNative().toList())
+        } catch (e: Throwable) {
+            KernelRoutesResult(emptyList(), "${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
-    fun detectKernelIpv6Routes(): List<String> {
-        if (!libraryLoaded) return emptyList()
+    fun detectKernelIpv6Routes(): KernelRoutesResult {
+        if (!libraryLoaded) return KernelRoutesResult(emptyList(), "Native library failed to load")
         return try {
-            getKernelIpv6RoutesNative().toList()
-        } catch (_: Throwable) {
-            emptyList()
+            KernelRoutesResult(getKernelIpv6RoutesNative().toList())
+        } catch (e: Throwable) {
+            KernelRoutesResult(emptyList(), "${e.javaClass.simpleName}: ${e.message}")
         }
     }
 }

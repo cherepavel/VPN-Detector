@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "VpnDetector"
 include(":app")
+include(":detector")

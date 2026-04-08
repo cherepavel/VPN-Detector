@@ -16,10 +16,16 @@ class DetectionEngine(
     private val javaInterfacesDetector: JavaInterfacesDetector = JavaInterfacesDetector(),
     private val trackedAppsDetector: TrackedAppsDetector = TrackedAppsDetector(context),
     private val dynamicVpnAppsDetector: DynamicVpnAppsDetector = DynamicVpnAppsDetector(context),
-    private val proxyDetector: ProxyDetector = ProxyDetector(context)
-) {
+    private val proxyDetector: ProxyDetector = ProxyDetector(context),
+    private val localProxyDetector: LocalProxyDetector = LocalProxyDetector()
+) : IDetectionEngine {
 
-    fun detect(): DetectionSnapshot {
+    companion object {
+        private val MTU_REGEX = Regex("mtu (\\d+)")
+        private val TYPE_REGEX = Regex("type (\\d+)")
+    }
+
+    override fun detect(): DetectionSnapshot {
         @Suppress("DEPRECATION")
         val allNetworks = connectivityManager.allNetworks.orEmpty()
         val activeNetwork = connectivityManager.activeNetwork
@@ -52,7 +58,7 @@ class DetectionEngine(
         } ?: emptyList()
 
         val vpnDnsServers = vpnLinkProps?.dnsServers?.mapNotNull { it.hostAddress } ?: emptyList()
-        val kernelIpv6Routes = IfconfigTermuxLikeDetector.detectKernelIpv6Routes()
+        val kernelIpv6RoutesResult = IfconfigTermuxLikeDetector.detectKernelIpv6Routes()
         val dnsSummary = NetworkSignalAnalyzer.buildDnsSummary(
             connectivityManager = connectivityManager,
             networks = allNetworks.toList(),
@@ -64,29 +70,31 @@ class DetectionEngine(
         )
 
         val nativeResult = IfconfigTermuxLikeDetector.detect()
-        val kernelRoutes = IfconfigTermuxLikeDetector.detectKernelRoutes()
+        val kernelRoutesResult = IfconfigTermuxLikeDetector.detectKernelRoutes()
         val javaTunnelNames = javaInterfacesDetector.detectTunnelNames()
 
         val trackedResult = trackedAppsDetector.detect()
         val installedVpnApps = trackedResult.installed.map { "${it.label} (${it.packageName})" }
         val dynamicVpnApps = dynamicVpnAppsDetector.detect()
 
-        val mtuRegex = Regex("mtu (\\d+)")
-        val typeRegex = Regex("type (\\d+)")
         val tunTypeInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
             val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
-            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            val type = TYPE_REGEX.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
             if (type == 65534) firstLine.substringBefore(':').trim() else null
         }
         val lowMtuInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
             val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
             val name = firstLine.substringBefore(':').trim()
-            val mtu = mtuRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
-            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            val mtu = MTU_REGEX.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            val type = TYPE_REGEX.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
             if (mtu != null && mtu < 1500 && type != 772 && name != "lo") "$name: mtu $mtu" else null
         }
 
         val proxyInfo = proxyDetector.detect().summary()
+        val alwaysOnResult = AlwaysOnVpnDetector.detect(connectivityManager)
+        val knownVpnDnsMatches = KnownVpnDnsDetector.detect(dnsSummary.allServers)
+        val localProxies = localProxyDetector.detect()
+        val workProfileResult = WorkProfileDetector.detect(context)
         val vpnPermissionGranted = VpnPermissionDetector.isThisAppVpnOwner(context)
         val vpnBandwidthSummary = vpnCaps?.let { caps ->
             val down = caps.linkDownstreamBandwidthKbps
@@ -113,7 +121,10 @@ class DetectionEngine(
                 preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
                 tunTypeInterfaces = tunTypeInterfaces,
                 lowMtuInterfaces = lowMtuInterfaces,
-                proxyInfo = proxyInfo
+                proxyInfo = proxyInfo,
+                lockdownLikely = alwaysOnResult.lockdownLikely,
+                knownVpnDnsMatches = knownVpnDnsMatches,
+                localProxies = localProxies
             )
         )
 
@@ -136,15 +147,24 @@ class DetectionEngine(
             privateDnsServerName = dnsSummary.privateDnsServerName,
             activeNetworkNotVpn = policySummary.activeNetworkNotVpn,
             preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
-            kernelRoutes = kernelRoutes,
-            kernelIpv6Routes = kernelIpv6Routes,
+            kernelRoutes = kernelRoutesResult.routes,
+            kernelIpv6Routes = kernelIpv6RoutesResult.routes,
             tunTypeInterfaces = tunTypeInterfaces,
             lowMtuInterfaces = lowMtuInterfaces,
             proxyInfo = proxyInfo,
             vpnPermissionGranted = vpnPermissionGranted,
             vpnBandwidthSummary = vpnBandwidthSummary,
-            nativeError = nativeResult.nativeError,
+            nativeError = listOfNotNull(
+                nativeResult.nativeError,
+                kernelRoutesResult.error?.let { "Kernel routes: $it" },
+                kernelIpv6RoutesResult.error?.let { "Kernel IPv6 routes: $it" }
+            ).joinToString("\n").takeIf { it.isNotBlank() },
             trackedAppsErrors = trackedResult.errors,
+            lockdownLikely = alwaysOnResult.lockdownLikely,
+            knownVpnDnsMatches = knownVpnDnsMatches,
+            localProxies = localProxies,
+            workProfileCount = workProfileResult.profileCount,
+            isManagedProfile = workProfileResult.isManagedProfile,
             assessment = assessment
         )
     }

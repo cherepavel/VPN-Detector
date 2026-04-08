@@ -6,23 +6,6 @@ import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionEvidence
 import com.cherepavel.vpndetector.model.DetectionStatus
 
-data class DetectionSignals(
-    val activeVpn: Boolean,
-    val anyVpn: Boolean,
-    val rawInterfaceName: String?,
-    val transportInfoSummary: String?,
-    val nativeTunnelNames: List<String>,
-    val javaTunnelNames: List<String>,
-    val installedVpnApps: List<String>,
-    val internalDnsServers: List<String>,
-    val contextualInternalDnsServers: List<String>,
-    val activeNetworkNotVpn: Boolean?,
-    val preferredNetworkNotVpn: Boolean?,
-    val tunTypeInterfaces: List<String>,
-    val lowMtuInterfaces: List<String>,
-    val proxyInfo: String?
-)
-
 object DetectionScorer {
 
     fun assess(signals: DetectionSignals): DetectionAssessment {
@@ -120,6 +103,27 @@ object DetectionScorer {
                 weight = 0,
                 present = signals.contextualInternalDnsServers.isNotEmpty(),
                 summary = "Carrier private DNS was observed on a cellular interface and is context only."
+            ),
+            DetectionEvidence(
+                key = "lockdown_likely",
+                category = DetectionCategory.HEURISTIC,
+                weight = 30,
+                present = signals.lockdownLikely,
+                summary = "VPN present and no validated non-VPN path exists — always-on lockdown likely."
+            ),
+            DetectionEvidence(
+                key = "known_vpn_dns",
+                category = DetectionCategory.HEURISTIC,
+                weight = 20,
+                present = signals.knownVpnDnsMatches.isNotEmpty(),
+                summary = "DNS servers matching known VPN provider addresses were observed."
+            ),
+            DetectionEvidence(
+                key = "local_proxy_detected",
+                category = DetectionCategory.CONTEXT,
+                weight = 15,
+                present = signals.localProxies.isNotEmpty(),
+                summary = "A local proxy port is open — traffic may be tunnelled without VpnService."
             )
         )
 
