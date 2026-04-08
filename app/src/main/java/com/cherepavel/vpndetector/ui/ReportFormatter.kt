@@ -1,6 +1,9 @@
 package com.cherepavel.vpndetector.ui
 
 import com.cherepavel.vpndetector.detector.TunnelNameMatcher
+import com.cherepavel.vpndetector.model.DetectionConfidence
+import com.cherepavel.vpndetector.model.DetectionSnapshot
+import com.cherepavel.vpndetector.model.DetectionStatus
 
 data class DetectionReport(
     val overallTitle: String,
@@ -23,52 +26,21 @@ data class DetectionReport(
 
 object ReportFormatter {
 
-    data class RawInput(
-        val hasTransportVpnAny: Boolean,
-        val hasTransportVpnActive: Boolean,
-        /** Raw value from LinkProperties.getInterfaceName(), always unfiltered. */
-        val rawInterfaceName: String?,
-        val transportInfoSummary: String?,
-        val nativeTunnelNames: List<String>,
-        val nativeDetails: List<String>,
-        val javaTunnelNames: List<String>,
-        val installedVpnApps: List<String>,
-        val dynamicVpnApps: List<String> = emptyList(),
-        val vpnRoutes: List<String> = emptyList(),
-        val vpnDnsServers: List<String> = emptyList(),
-        val allDnsServers: List<String> = emptyList(),
-        val internalDnsServers: List<String> = emptyList(),
-        val contextualInternalDnsServers: List<String> = emptyList(),
-        val privateDnsActive: Boolean = false,
-        val privateDnsServerName: String? = null,
-        val activeNetworkNotVpn: Boolean? = null,
-        val preferredNetworkNotVpn: Boolean? = null,
-        val underlyingNetworksSummary: String? = null,
-        val kernelRoutes: List<String> = emptyList(),
-        val kernelIpv6Routes: List<String> = emptyList(),
-        val tunTypeInterfaces: List<String> = emptyList(),
-        val lowMtuInterfaces: List<String> = emptyList(),
-        val proxyInfo: String? = null,
-        val vpnPermissionGranted: Boolean = false,
-        val vpnBandwidthSummary: String? = null,
-        val nativeError: String? = null,
-        val trackedAppsErrors: Map<String, String> = emptyMap()
-    )
+    fun build(snapshot: DetectionSnapshot): DetectionReport {
+        val anyVpn = snapshot.hasTransportVpnAny
+        val activeVpn = snapshot.hasTransportVpnActive
 
-    fun build(input: RawInput): DetectionReport {
-        val anyVpn = input.hasTransportVpnAny
-        val activeVpn = input.hasTransportVpnActive
-
-        val interfaceDetected = TunnelNameMatcher.looksLikeTunnelName(input.rawInterfaceName)
-        val transportInfoDetected = !input.transportInfoSummary.isNullOrBlank()
-        val dnsDetected = input.internalDnsServers.isNotEmpty()
+        val interfaceDetected = TunnelNameMatcher.looksLikeTunnelName(snapshot.rawInterfaceName)
+        val transportInfoDetected = !snapshot.transportInfoSummary.isNullOrBlank()
+        val dnsDetected = snapshot.internalDnsServers.isNotEmpty()
         val policyDetected =
-            input.activeNetworkNotVpn == false || input.preferredNetworkNotVpn == false
-        val nativeDetected = input.nativeTunnelNames.isNotEmpty()
-        val javaDetected = input.javaTunnelNames.isNotEmpty()
-        val appsDetected = input.installedVpnApps.isNotEmpty()
+            snapshot.activeNetworkNotVpn == false || snapshot.preferredNetworkNotVpn == false
+        val nativeDetected = snapshot.nativeTunnelNames.isNotEmpty()
+        val javaDetected = snapshot.javaTunnelNames.isNotEmpty()
+        val appsDetected = snapshot.installedVpnApps.isNotEmpty()
 
         val overall = buildOverallBlock(
+            snapshot = snapshot,
             activeVpn = activeVpn,
             anyVpn = anyVpn,
             interfaceDetected = interfaceDetected,
@@ -81,17 +53,17 @@ object ReportFormatter {
         )
 
         val apiSignals = buildApiSignals(
-            rawInterfaceName = input.rawInterfaceName,
+            rawInterfaceName = snapshot.rawInterfaceName,
             interfaceDetected = interfaceDetected,
-            transportInfoSummary = input.transportInfoSummary,
+            transportInfoSummary = snapshot.transportInfoSummary,
             transportInfoDetected = transportInfoDetected,
-            allDnsServers = input.allDnsServers,
-            internalDnsServers = input.internalDnsServers,
-            contextualInternalDnsServers = input.contextualInternalDnsServers,
-            privateDnsActive = input.privateDnsActive,
-            privateDnsServerName = input.privateDnsServerName,
-            activeNetworkNotVpn = input.activeNetworkNotVpn,
-            preferredNetworkNotVpn = input.preferredNetworkNotVpn,
+            allDnsServers = snapshot.allDnsServers,
+            internalDnsServers = snapshot.internalDnsServers,
+            contextualInternalDnsServers = snapshot.contextualInternalDnsServers,
+            privateDnsActive = snapshot.privateDnsActive,
+            privateDnsServerName = snapshot.privateDnsServerName,
+            activeNetworkNotVpn = snapshot.activeNetworkNotVpn,
+            preferredNetworkNotVpn = snapshot.preferredNetworkNotVpn,
             activeVpn = activeVpn,
             anyVpn = anyVpn
         )
@@ -99,7 +71,7 @@ object ReportFormatter {
         val nativeSignal = SignalItem(
             title = "Tunnel-like interfaces",
             source = "Native getifaddrs() enumeration",
-            value = input.nativeTunnelNames.ifEmpty { listOf("none") }.joinToString(", "),
+            value = snapshot.nativeTunnelNames.ifEmpty { listOf("none") }.joinToString(", "),
             state = if (nativeDetected) SignalState.WARNING else SignalState.NEGATIVE,
             hint = if (nativeDetected) {
                 "Native enumeration found interfaces whose names or properties look tunnel-like."
@@ -111,7 +83,7 @@ object ReportFormatter {
         val javaSignal = SignalItem(
             title = "Tunnel-like interfaces",
             source = "Java NetworkInterface enumeration",
-            value = input.javaTunnelNames.ifEmpty { listOf("none") }.joinToString(", "),
+            value = snapshot.javaTunnelNames.ifEmpty { listOf("none") }.joinToString(", "),
             state = if (javaDetected) SignalState.WARNING else SignalState.NEGATIVE,
             hint = if (javaDetected) {
                 "Java network enumeration found interface names that look like VPN or tunnel interfaces."
@@ -121,103 +93,99 @@ object ReportFormatter {
         )
 
         val nativeDetailsText = buildString {
-            if (input.nativeError != null) {
-                appendLine("Native detector error: ${input.nativeError}")
+            if (snapshot.nativeError != null) {
+                appendLine("Native detector error: ${snapshot.nativeError}")
                 appendLine()
             }
-            if (input.nativeDetails.isNotEmpty()) {
-                append(input.nativeDetails.joinToString(separator = "\n\n"))
-            } else if (input.nativeError == null) {
+            if (snapshot.nativeDetails.isNotEmpty()) {
+                append(snapshot.nativeDetails.joinToString(separator = "\n\n"))
+            } else if (snapshot.nativeError == null) {
                 append("No interfaces were returned by the native detector.")
             }
-            if (input.tunTypeInterfaces.isNotEmpty()) {
+            if (snapshot.tunTypeInterfaces.isNotEmpty()) {
                 append("\n\n--- TUN interfaces (type=65534) ---\n")
-                append(input.tunTypeInterfaces.joinToString(", "))
+                append(snapshot.tunTypeInterfaces.joinToString(", "))
             }
-            if (input.lowMtuInterfaces.isNotEmpty()) {
+            if (snapshot.lowMtuInterfaces.isNotEmpty()) {
                 append("\n\n--- Low-MTU interfaces (<1500) ---\n")
-                append(input.lowMtuInterfaces.joinToString("\n"))
+                append(snapshot.lowMtuInterfaces.joinToString("\n"))
             }
-            if (input.vpnRoutes.isNotEmpty()) {
+            if (snapshot.vpnRoutes.isNotEmpty()) {
                 append("\n\n--- VPN network routes ---\n")
-                append(input.vpnRoutes.joinToString("\n"))
+                append(snapshot.vpnRoutes.joinToString("\n"))
             }
-            if (input.vpnDnsServers.isNotEmpty()) {
+            if (snapshot.vpnDnsServers.isNotEmpty()) {
                 append("\n\n--- VPN DNS servers ---\n")
-                append(input.vpnDnsServers.joinToString(", "))
+                append(snapshot.vpnDnsServers.joinToString(", "))
             }
-            if (input.allDnsServers.isNotEmpty()) {
+            if (snapshot.allDnsServers.isNotEmpty()) {
                 append("\n\n--- DNS servers across visible networks ---\n")
-                append(input.allDnsServers.joinToString("\n"))
+                append(snapshot.allDnsServers.joinToString("\n"))
             }
-            if (input.internalDnsServers.isNotEmpty()) {
+            if (snapshot.internalDnsServers.isNotEmpty()) {
                 append("\n\n--- Internal/private-range DNS servers ---\n")
-                append(input.internalDnsServers.joinToString("\n"))
+                append(snapshot.internalDnsServers.joinToString("\n"))
             }
-            if (input.contextualInternalDnsServers.isNotEmpty()) {
+            if (snapshot.contextualInternalDnsServers.isNotEmpty()) {
                 append("\n\n--- Cellular private DNS observed (not treated as VPN) ---\n")
-                append(input.contextualInternalDnsServers.joinToString("\n"))
+                append(snapshot.contextualInternalDnsServers.joinToString("\n"))
             }
-            if (input.privateDnsActive || input.privateDnsServerName != null) {
+            if (snapshot.privateDnsActive || snapshot.privateDnsServerName != null) {
                 append("\n\n--- Private DNS ---\n")
                 append(
                     buildString {
-                        append(if (input.privateDnsActive) "active" else "inactive")
-                        input.privateDnsServerName?.let { append(" ($it)") }
+                        append(if (snapshot.privateDnsActive) "active" else "inactive")
+                        snapshot.privateDnsServerName?.let { append(" ($it)") }
                     }
                 )
             }
-            if (input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null) {
+            if (snapshot.activeNetworkNotVpn != null || snapshot.preferredNetworkNotVpn != null) {
                 append("\n\n--- NET_CAPABILITY_NOT_VPN ---\n")
                 append("active=")
-                append(input.activeNetworkNotVpn?.toString() ?: "unknown")
+                append(snapshot.activeNetworkNotVpn?.toString() ?: "unknown")
                 append(", preferred=")
-                append(input.preferredNetworkNotVpn?.toString() ?: "unknown")
+                append(snapshot.preferredNetworkNotVpn?.toString() ?: "unknown")
             }
-            if (input.underlyingNetworksSummary != null) {
-                append("\n\n--- Underlying physical networks ---\n")
-                append(input.underlyingNetworksSummary)
-            }
-            if (input.vpnBandwidthSummary != null) {
+            if (snapshot.vpnBandwidthSummary != null) {
                 append("\n\n--- VPN bandwidth ---\n")
-                append(input.vpnBandwidthSummary)
+                append(snapshot.vpnBandwidthSummary)
             }
-            if (input.kernelRoutes.isNotEmpty()) {
+            if (snapshot.kernelRoutes.isNotEmpty()) {
                 append("\n\n--- Kernel route table (/proc/net/route) ---\n")
-                append(input.kernelRoutes.joinToString("\n"))
+                append(snapshot.kernelRoutes.joinToString("\n"))
             }
-            if (input.kernelIpv6Routes.isNotEmpty()) {
+            if (snapshot.kernelIpv6Routes.isNotEmpty()) {
                 append("\n\n--- Kernel route table (/proc/net/ipv6_route) ---\n")
-                append(input.kernelIpv6Routes.joinToString("\n"))
+                append(snapshot.kernelIpv6Routes.joinToString("\n"))
             }
-            if (input.proxyInfo != null) {
+            if (snapshot.proxyInfo != null) {
                 append("\n\n--- Proxy detection ---\n")
-                append(input.proxyInfo)
+                append(snapshot.proxyInfo)
             }
-            if (input.vpnPermissionGranted) {
+            if (snapshot.vpnPermissionGranted) {
                 append("\n\n--- VPN permission ---\n")
                 append("This app holds Android VPN permission (anomalous for a detector).")
             }
         }
 
-        val dynamicUnknown = input.dynamicVpnApps.filter { pkg ->
-            input.installedVpnApps.none { it.contains(pkg) }
+        val dynamicUnknown = snapshot.dynamicVpnApps.filter { pkg ->
+            snapshot.installedVpnApps.none { it.contains(pkg) }
         }
         val appsText = buildString {
-            if (input.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
+            if (snapshot.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
                 append("No VPN-related apps detected.")
             } else {
-                input.installedVpnApps.forEach { appendLine("• $it") }
+                snapshot.installedVpnApps.forEach { appendLine("• $it") }
                 if (dynamicUnknown.isNotEmpty()) {
-                    if (input.installedVpnApps.isNotEmpty()) appendLine()
+                    if (snapshot.installedVpnApps.isNotEmpty()) appendLine()
                     appendLine("Detected via VpnService query:")
                     dynamicUnknown.forEach { appendLine("• $it") }
                 }
             }
-            if (input.trackedAppsErrors.isNotEmpty()) {
-                if (input.installedVpnApps.isNotEmpty() || dynamicUnknown.isNotEmpty()) appendLine()
+            if (snapshot.trackedAppsErrors.isNotEmpty()) {
+                if (snapshot.installedVpnApps.isNotEmpty() || dynamicUnknown.isNotEmpty()) appendLine()
                 appendLine("Check errors (package manager returned unexpected error):")
-                input.trackedAppsErrors.forEach { (pkg, err) -> appendLine("• $pkg: $err") }
+                snapshot.trackedAppsErrors.forEach { (pkg, err) -> appendLine("• $pkg: $err") }
             }
         }.trimEnd()
 
@@ -242,6 +210,7 @@ object ReportFormatter {
     }
 
     private fun buildOverallBlock(
+        snapshot: DetectionSnapshot,
         activeVpn: Boolean,
         anyVpn: Boolean,
         interfaceDetected: Boolean,
@@ -252,12 +221,14 @@ object ReportFormatter {
         javaDetected: Boolean,
         appsDetected: Boolean
     ): OverallBlock {
+        val confidenceText = snapshot.assessment.confidence.label()
+        val scoreText = "Confidence: $confidenceText (${snapshot.assessment.score}/100)."
         return when {
-            activeVpn -> {
+            snapshot.assessment.status == DetectionStatus.ACTIVE_VPN || activeVpn -> {
                 OverallBlock(
                     title = "VPN detected",
                     summary = "The active network is explicitly marked as VPN by Android.",
-                    explanation = "This is the strongest signal in the app: Android reports TRANSPORT_VPN on the network currently in use.",
+                    explanation = "This is the strongest signal in the app: Android reports TRANSPORT_VPN on the network currently in use. $scoreText",
                     state = SignalState.POSITIVE,
                     transportState = SignalState.POSITIVE,
                     transportText = "VPN DETECTED",
@@ -265,11 +236,11 @@ object ReportFormatter {
                 )
             }
 
-            anyVpn -> {
+            snapshot.assessment.status == DetectionStatus.SPLIT_TUNNEL || anyVpn -> {
                 OverallBlock(
                     title = "VPN present outside active path",
                     summary = "Android sees a VPN network in the system, but not on the current active network.",
-                    explanation = "This often matches bypass or split-tunnel behavior: a VPN exists, but current traffic may not be fully routed through it.",
+                    explanation = "This often matches bypass or split-tunnel behavior: a VPN exists, but current traffic may not be fully routed through it. $scoreText",
                     state = SignalState.SEMI,
                     transportState = SignalState.SEMI,
                     transportText = "SPLIT / BYPASS",
@@ -281,7 +252,7 @@ object ReportFormatter {
                 OverallBlock(
                     title = "VPN-related API signal",
                     summary = "Android APIs still expose VPN-like indicators even though active TRANSPORT_VPN is absent.",
-                    explanation = "This is weaker than a direct VPN transport flag, but interface, DNS, or capability signals still suggest VPN-related state in the visible network stack.",
+                    explanation = "This is weaker than a direct VPN transport flag, but interface, DNS, or capability signals still suggest VPN-related state in the visible network stack. $scoreText",
                     state = SignalState.WARNING,
                     transportState = SignalState.WARNING,
                     transportText = "API SIGNAL",
@@ -293,7 +264,7 @@ object ReportFormatter {
                 OverallBlock(
                     title = "Low-level tunnel signal",
                     summary = "No primary Android VPN signal was found, but tunnel-like interfaces were still discovered.",
-                    explanation = "This usually means only low-level interface heuristics fired. It is useful as an additional hint, but weaker than official Android VPN signals.",
+                    explanation = "This usually means only low-level interface heuristics fired. It is useful as an additional hint, but weaker than official Android VPN signals. $scoreText",
                     state = SignalState.WARNING,
                     transportState = SignalState.NEGATIVE,
                     transportText = "NOT DETECTED",
@@ -301,11 +272,11 @@ object ReportFormatter {
                 )
             }
 
-            appsDetected -> {
+            snapshot.assessment.status == DetectionStatus.APPS_PRESENT || appsDetected -> {
                 OverallBlock(
                     title = "Detected VPN apps",
                     summary = "No active VPN network signal was found, but known VPN-related apps are installed on the device.",
-                    explanation = "Installed VPN apps do not prove that a VPN is currently active, but they are still a relevant contextual signal.",
+                    explanation = "Installed VPN apps do not prove that a VPN is currently active, but they are still a relevant contextual signal. $scoreText",
                     state = SignalState.WARNING,
                     transportState = SignalState.NEGATIVE,
                     transportText = "NOT DETECTED",
@@ -317,7 +288,7 @@ object ReportFormatter {
                 OverallBlock(
                     title = "No VPN detected",
                     summary = "The app did not find any high-level or low-level VPN indicators.",
-                    explanation = "Neither official Android network APIs nor interface enumeration produced a VPN-related signal.",
+                    explanation = "Neither official Android network APIs nor interface enumeration produced a VPN-related signal. $scoreText",
                     state = SignalState.NEGATIVE,
                     transportState = SignalState.NEGATIVE,
                     transportText = "NOT DETECTED",
@@ -434,4 +405,13 @@ object ReportFormatter {
         val transportText: String,
         val transportSubtitle: String
     )
+
+    private fun DetectionConfidence.label(): String {
+        return when (this) {
+            DetectionConfidence.CONFIRMED -> "confirmed"
+            DetectionConfidence.LIKELY -> "likely"
+            DetectionConfidence.WEAK_SIGNAL -> "weak signal"
+            DetectionConfidence.NO_EVIDENCE -> "no evidence"
+        }
+    }
 }

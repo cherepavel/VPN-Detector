@@ -8,7 +8,6 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
@@ -24,27 +23,20 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import com.cherepavel.vpndetector.detector.DynamicVpnAppsDetector
-import com.cherepavel.vpndetector.detector.IfconfigTermuxLikeDetector
-import com.cherepavel.vpndetector.detector.JavaInterfacesDetector
-import com.cherepavel.vpndetector.detector.ProxyDetector
-import com.cherepavel.vpndetector.detector.TrackedAppsDetector
-import com.cherepavel.vpndetector.detector.TunnelNameMatcher
-import com.cherepavel.vpndetector.detector.VpnPermissionDetector
+import com.cherepavel.vpndetector.detector.DetectionEngine
+import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
 import com.cherepavel.vpndetector.ui.ReportFormatter
 import com.cherepavel.vpndetector.ui.SignalItem
 import com.cherepavel.vpndetector.ui.SignalState
-import com.cherepavel.vpndetector.util.NetworkSignalAnalyzer
-import com.cherepavel.vpndetector.util.TransportInfoFormatter
 import com.cherepavel.vpndetector.util.nowString
 import java.io.OutputStreamWriter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -95,18 +87,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var apiSignalValues: List<TextView>
     private lateinit var apiSignalHints: List<TextView>
 
-    private val javaInterfacesDetector by lazy { JavaInterfacesDetector() }
-    private val trackedAppsDetector by lazy { TrackedAppsDetector(this) }
-    private val dynamicVpnAppsDetector by lazy { DynamicVpnAppsDetector(this) }
-    private val proxyDetector by lazy { ProxyDetector(this) }
     private val connectivityManager by lazy {
         getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     }
+    private val detectionEngine by lazy { DetectionEngine(this, connectivityManager) }
 
-    private var lastDetectionReport: DetectionReport? = null
-    private var lastNativeDetailsRaw: String = ""
-    private var lastJavaTunnelNames: List<String> = emptyList()
-    private var lastInstalledVpnApps: List<String> = emptyList()
     private var lastExportText: String = ""
     private var detectionJob: Job? = null
     private var scheduledRefreshJob: Job? = null
@@ -238,9 +223,8 @@ class MainActivity : AppCompatActivity() {
 
     private data class DetectionOutput(
         val report: DetectionReport,
-        val exportText: String,
-        val javaTunnelNames: List<String>,
-        val installedVpnApps: List<String>
+        val snapshot: DetectionSnapshot,
+        val exportText: String
     )
 
     private fun refreshUi() {
@@ -250,10 +234,6 @@ class MainActivity : AppCompatActivity() {
             val output = withContext(Dispatchers.IO) { runDetection() }
             renderReport(output.report)
             renderLastUpdate()
-            lastDetectionReport = output.report
-            lastNativeDetailsRaw = output.report.nativeDetails
-            lastJavaTunnelNames = output.javaTunnelNames
-            lastInstalledVpnApps = output.installedVpnApps
             lastExportText = output.exportText
             buttonRefresh.isEnabled = true
         }
@@ -286,158 +266,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runDetection(): DetectionOutput {
-        @Suppress("DEPRECATION")
-        val allNetworks = connectivityManager.allNetworks.orEmpty()
-        val activeNetwork = connectivityManager.activeNetwork
-        val activeCapabilities = activeNetwork?.let(connectivityManager::getNetworkCapabilities)
-
-        val vpnNetworks = allNetworks.filter { hasTransportVpn(connectivityManager, it) }
-        val anyVpn = vpnNetworks.isNotEmpty()
-        val activeVpn = activeCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-
-        val preferredNetwork = vpnNetworks.firstOrNull() ?: activeNetwork ?: allNetworks.firstOrNull()
-
-        val preferredLinkProperties: LinkProperties? =
-            preferredNetwork?.let(connectivityManager::getLinkProperties)
-
-        val preferredCapabilities: NetworkCapabilities? =
-            preferredNetwork?.let(connectivityManager::getNetworkCapabilities)
-
-        // #4: always preserve the raw interface name — filtering happens in ReportFormatter
-        val rawInterfaceName = preferredLinkProperties?.interfaceName
-
-        val transportInfoSummary =
-            TransportInfoFormatter.summarizeVpnTransportInfo(preferredCapabilities)
-
-        val vpnNetwork = vpnNetworks.firstOrNull()
-        val vpnLinkProps = vpnNetwork?.let(connectivityManager::getLinkProperties)
-        val vpnCaps = vpnNetwork?.let(connectivityManager::getNetworkCapabilities)
-
-        val vpnRoutes = vpnLinkProps?.routes?.map { route ->
-            buildString {
-                append(route.destination.toString())
-                route.gateway?.hostAddress?.let { gw -> append(" via $gw") }
-                if (route.destination.prefixLength == 0) append(" [DEFAULT]")
-            }
-        } ?: emptyList()
-
-        val vpnDnsServers = vpnLinkProps?.dnsServers
-            ?.mapNotNull { it.hostAddress }
-            ?: emptyList()
-        val kernelIpv6Routes = IfconfigTermuxLikeDetector.detectKernelIpv6Routes()
-        val dnsSummary = NetworkSignalAnalyzer.buildDnsSummary(
-            connectivityManager = connectivityManager,
-            networks = allNetworks.toList(),
-            preferredLinkProperties = preferredLinkProperties
-        )
-        val policySummary = NetworkSignalAnalyzer.buildPolicySummary(
-            activeCapabilities = activeCapabilities,
-            preferredCapabilities = preferredCapabilities
-        )
-
-        val nativeResult = IfconfigTermuxLikeDetector.detect()
-        val kernelRoutes = IfconfigTermuxLikeDetector.detectKernelRoutes()
-        val javaTunnelNames = javaInterfacesDetector.detectTunnelNames()
-
-        // #2: use new TrackedAppsResult that distinguishes not-installed from errors
-        val trackedResult = trackedAppsDetector.detect()
-        val installedVpnApps = trackedResult.installed.map { "${it.label} (${it.packageName})" }
-        val trackedAppsErrors = trackedResult.errors
-
-        val dynamicVpnApps = dynamicVpnAppsDetector.detect()
-
-        val mtuRegex = Regex("mtu (\\d+)")
-        val typeRegex = Regex("type (\\d+)")
-        val tunTypeInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
-            val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
-            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
-            if (type == 65534) firstLine.substringBefore(':').trim() else null
-        }
-        val lowMtuInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
-            val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
-            val name = firstLine.substringBefore(':').trim()
-            val mtu = mtuRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
-            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
-            if (mtu != null && mtu < 1500 && type != 772 && name != "lo") "$name: mtu $mtu" else null
-        }
-
-        val proxyInfo = proxyDetector.detect().summary()
-        val vpnPermissionGranted = VpnPermissionDetector.isThisAppVpnOwner(this)
-        val vpnBandwidthSummary = vpnCaps?.let { caps ->
-            val down = caps.linkDownstreamBandwidthKbps
-            val up = caps.linkUpstreamBandwidthKbps
-            if (down > 0 || up > 0) "↓ $down Kbps  ↑ $up Kbps" else null
-        }
-
-        val nativeTunnelNames = nativeResult.matchedInterfaces
-            .map { it.substringBefore(':').trim() }
-            .distinct()
-
-        val rawInput = ReportFormatter.RawInput(
-            hasTransportVpnAny = anyVpn,
-            hasTransportVpnActive = activeVpn,
-            rawInterfaceName = rawInterfaceName,
-            transportInfoSummary = transportInfoSummary,
-            nativeTunnelNames = nativeTunnelNames,
-            nativeDetails = nativeResult.allInterfaces,
-            javaTunnelNames = javaTunnelNames,
-            installedVpnApps = installedVpnApps,
-            dynamicVpnApps = dynamicVpnApps,
-            vpnRoutes = vpnRoutes,
-            vpnDnsServers = vpnDnsServers,
-            allDnsServers = dnsSummary.allServers,
-            internalDnsServers = dnsSummary.internalServers,
-            contextualInternalDnsServers = dnsSummary.contextualInternalServers,
-            privateDnsActive = dnsSummary.privateDnsActive,
-            privateDnsServerName = dnsSummary.privateDnsServerName,
-            activeNetworkNotVpn = policySummary.activeNetworkNotVpn,
-            preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
-            kernelRoutes = kernelRoutes,
-            kernelIpv6Routes = kernelIpv6Routes,
-            tunTypeInterfaces = tunTypeInterfaces,
-            lowMtuInterfaces = lowMtuInterfaces,
-            proxyInfo = proxyInfo,
-            vpnPermissionGranted = vpnPermissionGranted,
-            vpnBandwidthSummary = vpnBandwidthSummary,
-            nativeError = nativeResult.nativeError,
-            trackedAppsErrors = trackedAppsErrors
-        )
-
-        val report = ReportFormatter.build(rawInput)
+        val snapshot = detectionEngine.detect()
+        val report = ReportFormatter.build(snapshot)
 
         val exportText = ReportExportFormatter.buildText(
             ReportExportFormatter.ExportInput(
                 report = report,
-                nativeDetailsRaw = report.nativeDetails,
-                javaTunnelNames = javaTunnelNames,
-                installedVpnApps = installedVpnApps,
-                dynamicVpnApps = dynamicVpnApps,
-                vpnRoutes = vpnRoutes,
-                vpnDnsServers = vpnDnsServers,
-                allDnsServers = dnsSummary.allServers,
-                internalDnsServers = dnsSummary.internalServers,
-                contextualInternalDnsServers = dnsSummary.contextualInternalServers,
-                privateDnsActive = dnsSummary.privateDnsActive,
-                privateDnsServerName = dnsSummary.privateDnsServerName,
-                activeNetworkNotVpn = policySummary.activeNetworkNotVpn,
-                preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
-                kernelRoutes = kernelRoutes,
-                kernelIpv6Routes = kernelIpv6Routes,
-                tunTypeInterfaces = tunTypeInterfaces,
-                lowMtuInterfaces = lowMtuInterfaces,
-                proxyInfo = proxyInfo,
-                vpnPermissionGranted = vpnPermissionGranted,
-                vpnBandwidthSummary = vpnBandwidthSummary,
-                nativeError = nativeResult.nativeError,
-                trackedAppsErrors = trackedAppsErrors
+                snapshot = snapshot
             )
         )
 
         return DetectionOutput(
             report = report,
-            exportText = exportText,
-            javaTunnelNames = javaTunnelNames,
-            installedVpnApps = installedVpnApps
+            snapshot = snapshot,
+            exportText = exportText
         )
     }
 
@@ -524,14 +366,6 @@ class MainActivity : AppCompatActivity() {
 
         applyInnerCardBackground(card)
         applyValueTextColor(valueView, item.state)
-    }
-
-    private fun hasTransportVpn(
-        connectivityManager: ConnectivityManager,
-        network: Network
-    ): Boolean {
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
     }
 
     private fun renderLastUpdate() {

@@ -1,38 +1,18 @@
 package com.cherepavel.vpndetector.ui
 
+import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.util.nowString
 
 object ReportExportFormatter {
 
     data class ExportInput(
         val report: DetectionReport,
-        val nativeDetailsRaw: String,
-        val javaTunnelNames: List<String>,
-        val installedVpnApps: List<String>,
-        val dynamicVpnApps: List<String> = emptyList(),
-        val vpnRoutes: List<String> = emptyList(),
-        val vpnDnsServers: List<String> = emptyList(),
-        val allDnsServers: List<String> = emptyList(),
-        val internalDnsServers: List<String> = emptyList(),
-        val contextualInternalDnsServers: List<String> = emptyList(),
-        val privateDnsActive: Boolean = false,
-        val privateDnsServerName: String? = null,
-        val activeNetworkNotVpn: Boolean? = null,
-        val preferredNetworkNotVpn: Boolean? = null,
-        val underlyingNetworksSummary: String? = null,
-        val kernelRoutes: List<String> = emptyList(),
-        val kernelIpv6Routes: List<String> = emptyList(),
-        val tunTypeInterfaces: List<String> = emptyList(),
-        val lowMtuInterfaces: List<String> = emptyList(),
-        val proxyInfo: String? = null,
-        val vpnPermissionGranted: Boolean = false,
-        val vpnBandwidthSummary: String? = null,
-        val nativeError: String? = null,
-        val trackedAppsErrors: Map<String, String> = emptyMap()
+        val snapshot: DetectionSnapshot
     )
 
     fun buildText(input: ExportInput): String {
         val report = input.report
+        val snapshot = input.snapshot
 
         return buildString {
             appendLine("VPN Detector Report")
@@ -43,6 +23,9 @@ object ReportExportFormatter {
             appendLine(report.overallTitle)
             appendLine(report.overallSummary)
             appendLine(report.overallExplanation)
+            appendLine("Score: ${snapshot.assessment.score}/100")
+            appendLine("Confidence: ${snapshot.assessment.confidence}")
+            appendLine("Status: ${snapshot.assessment.status}")
             appendLine()
 
             appendLine("=== OFFICIAL ANDROID API ===")
@@ -63,116 +46,115 @@ object ReportExportFormatter {
                 appendLine()
             }
 
-            if (input.vpnRoutes.isNotEmpty() || input.vpnDnsServers.isNotEmpty() ||
-                input.allDnsServers.isNotEmpty() || input.internalDnsServers.isNotEmpty() ||
-                input.contextualInternalDnsServers.isNotEmpty() ||
-                input.privateDnsActive || input.privateDnsServerName != null ||
-                input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null ||
-                input.underlyingNetworksSummary != null || input.vpnBandwidthSummary != null) {
+            if (snapshot.vpnRoutes.isNotEmpty() || snapshot.vpnDnsServers.isNotEmpty() ||
+                snapshot.allDnsServers.isNotEmpty() || snapshot.internalDnsServers.isNotEmpty() ||
+                snapshot.contextualInternalDnsServers.isNotEmpty() ||
+                snapshot.privateDnsActive || snapshot.privateDnsServerName != null ||
+                snapshot.activeNetworkNotVpn != null || snapshot.preferredNetworkNotVpn != null ||
+                snapshot.vpnBandwidthSummary != null) {
                 appendLine("=== VPN NETWORK DETAILS ===")
-                if (input.vpnRoutes.isNotEmpty()) {
+                if (snapshot.vpnRoutes.isNotEmpty()) {
                     appendLine("Routes:")
-                    input.vpnRoutes.forEach { appendLine("  $it") }
+                    snapshot.vpnRoutes.forEach { appendLine("  $it") }
                 }
-                if (input.vpnDnsServers.isNotEmpty()) {
-                    appendLine("DNS servers: ${input.vpnDnsServers.joinToString(", ")}")
+                if (snapshot.vpnDnsServers.isNotEmpty()) {
+                    appendLine("DNS servers: ${snapshot.vpnDnsServers.joinToString(", ")}")
                 }
-                if (input.allDnsServers.isNotEmpty()) {
+                if (snapshot.allDnsServers.isNotEmpty()) {
                     appendLine("DNS across visible networks:")
-                    input.allDnsServers.forEach { appendLine("  $it") }
+                    snapshot.allDnsServers.forEach { appendLine("  $it") }
                 }
-                if (input.internalDnsServers.isNotEmpty()) {
+                if (snapshot.internalDnsServers.isNotEmpty()) {
                     appendLine("Internal/private-range DNS servers:")
-                    input.internalDnsServers.forEach { appendLine("  $it") }
+                    snapshot.internalDnsServers.forEach { appendLine("  $it") }
                 }
-                if (input.contextualInternalDnsServers.isNotEmpty()) {
+                if (snapshot.contextualInternalDnsServers.isNotEmpty()) {
                     appendLine("Cellular private DNS observed (not treated as VPN):")
-                    input.contextualInternalDnsServers.forEach { appendLine("  $it") }
+                    snapshot.contextualInternalDnsServers.forEach { appendLine("  $it") }
                 }
-                if (input.privateDnsActive || input.privateDnsServerName != null) {
+                if (snapshot.privateDnsActive || snapshot.privateDnsServerName != null) {
                     appendLine(
                         "Private DNS: " + buildString {
-                            append(if (input.privateDnsActive) "active" else "inactive")
-                            input.privateDnsServerName?.let { append(" ($it)") }
+                            append(if (snapshot.privateDnsActive) "active" else "inactive")
+                            snapshot.privateDnsServerName?.let { append(" ($it)") }
                         }
                     )
                 }
-                if (input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null) {
+                if (snapshot.activeNetworkNotVpn != null || snapshot.preferredNetworkNotVpn != null) {
                     appendLine(
-                        "NET_CAPABILITY_NOT_VPN: active=${input.activeNetworkNotVpn ?: "unknown"}, " +
-                            "preferred=${input.preferredNetworkNotVpn ?: "unknown"}"
+                        "NET_CAPABILITY_NOT_VPN: active=${snapshot.activeNetworkNotVpn ?: "unknown"}, " +
+                            "preferred=${snapshot.preferredNetworkNotVpn ?: "unknown"}"
                     )
                 }
-                input.underlyingNetworksSummary?.let { appendLine("Underlying networks: $it") }
-                input.vpnBandwidthSummary?.let { appendLine("Bandwidth: $it") }
+                snapshot.vpnBandwidthSummary?.let { appendLine("Bandwidth: $it") }
                 appendLine()
             }
 
-            if (input.tunTypeInterfaces.isNotEmpty() || input.lowMtuInterfaces.isNotEmpty() ||
-                input.kernelRoutes.isNotEmpty() || input.kernelIpv6Routes.isNotEmpty() ||
-                input.proxyInfo != null || input.vpnPermissionGranted) {
+            if (snapshot.tunTypeInterfaces.isNotEmpty() || snapshot.lowMtuInterfaces.isNotEmpty() ||
+                snapshot.kernelRoutes.isNotEmpty() || snapshot.kernelIpv6Routes.isNotEmpty() ||
+                snapshot.proxyInfo != null || snapshot.vpnPermissionGranted) {
                 appendLine("=== ADDITIONAL SIGNALS ===")
-                if (input.tunTypeInterfaces.isNotEmpty()) {
-                    appendLine("TUN interfaces (type=65534): ${input.tunTypeInterfaces.joinToString(", ")}")
+                if (snapshot.tunTypeInterfaces.isNotEmpty()) {
+                    appendLine("TUN interfaces (type=65534): ${snapshot.tunTypeInterfaces.joinToString(", ")}")
                 }
-                if (input.lowMtuInterfaces.isNotEmpty()) {
+                if (snapshot.lowMtuInterfaces.isNotEmpty()) {
                     appendLine("Low-MTU interfaces (<1500):")
-                    input.lowMtuInterfaces.forEach { appendLine("  $it") }
+                    snapshot.lowMtuInterfaces.forEach { appendLine("  $it") }
                 }
-                if (input.kernelRoutes.isNotEmpty()) {
+                if (snapshot.kernelRoutes.isNotEmpty()) {
                     appendLine("Kernel route table (/proc/net/route):")
-                    input.kernelRoutes.forEach { appendLine("  $it") }
+                    snapshot.kernelRoutes.forEach { appendLine("  $it") }
                 }
-                if (input.kernelIpv6Routes.isNotEmpty()) {
+                if (snapshot.kernelIpv6Routes.isNotEmpty()) {
                     appendLine("Kernel route table (/proc/net/ipv6_route):")
-                    input.kernelIpv6Routes.forEach { appendLine("  $it") }
+                    snapshot.kernelIpv6Routes.forEach { appendLine("  $it") }
                 }
-                input.proxyInfo?.let {
+                snapshot.proxyInfo?.let {
                     appendLine("Proxy detected:")
                     it.lines().forEach { line -> appendLine("  $line") }
                 }
-                if (input.vpnPermissionGranted) {
+                if (snapshot.vpnPermissionGranted) {
                     appendLine("VPN permission: this app holds VPN grant (anomalous).")
                 }
                 appendLine()
             }
 
             appendLine("=== NATIVE LOW-LEVEL ENUMERATION ===")
-            if (input.nativeError != null) {
-                appendLine("Error: ${input.nativeError}")
+            if (snapshot.nativeError != null) {
+                appendLine("Error: ${snapshot.nativeError}")
             }
             appendLine("Signal value: ${report.nativeSignal.value}")
             appendLine("Signal hint: ${report.nativeSignal.hint}")
             appendLine()
-            appendLine(input.nativeDetailsRaw)
+            appendLine(report.nativeDetails)
             appendLine()
 
             appendLine("=== JAVA INTERFACE ENUMERATION ===")
             appendLine("Signal value: ${report.javaSignal.value}")
             appendLine("Signal hint: ${report.javaSignal.hint}")
-            if (input.javaTunnelNames.isNotEmpty()) {
+            if (snapshot.javaTunnelNames.isNotEmpty()) {
                 appendLine("Matched tunnel-like names:")
-                input.javaTunnelNames.forEach { appendLine("- $it") }
+                snapshot.javaTunnelNames.forEach { appendLine("- $it") }
             }
             appendLine()
 
             appendLine("=== DETECTED VPN APPS ===")
-            val dynamicUnknown = input.dynamicVpnApps.filter { pkg ->
-                input.installedVpnApps.none { it.contains(pkg) }
+            val dynamicUnknown = snapshot.dynamicVpnApps.filter { pkg ->
+                snapshot.installedVpnApps.none { it.contains(pkg) }
             }
-            if (input.installedVpnApps.isNotEmpty()) {
+            if (snapshot.installedVpnApps.isNotEmpty()) {
                 appendLine("From tracked list:")
-                input.installedVpnApps.forEach { appendLine("- $it") }
+                snapshot.installedVpnApps.forEach { appendLine("- $it") }
             }
             if (dynamicUnknown.isNotEmpty()) {
                 appendLine("Detected via VpnService query:")
                 dynamicUnknown.forEach { appendLine("- $it") }
             }
-            if (input.trackedAppsErrors.isNotEmpty()) {
+            if (snapshot.trackedAppsErrors.isNotEmpty()) {
                 appendLine("Check errors:")
-                input.trackedAppsErrors.forEach { (pkg, err) -> appendLine("- $pkg: $err") }
+                snapshot.trackedAppsErrors.forEach { (pkg, err) -> appendLine("- $pkg: $err") }
             }
-            if (input.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
+            if (snapshot.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
                 appendLine("No VPN-related apps detected.")
             }
         }.trim()
