@@ -1,19 +1,40 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project("ifconfigdetector")
+project(ifconfigdetector LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(
-        ifconfigdetector
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
+
+add_library(${PROJECT_NAME}
         SHARED
         ifconfigdetector.cpp
 )
 
-find_library(
-        log-lib
-        log
+#for tests in Linux
+if(NOT ANDROID)
+    find_package(JNI REQUIRED)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${JNI_INCLUDE_DIRS})
+endif ()
+
+if(ANDROID)
+    find_library(log-lib log)
+    if(log-lib)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${log-lib})
+    endif()
+endif()
+
+target_compile_options(${PROJECT_NAME} PRIVATE
+        -Wall
+        -Wextra
+        -O2
+        -fPIC
 )
 
-target_link_libraries(
-        ifconfigdetector
-        ${log-lib}
+set_target_properties(${PROJECT_NAME} PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        OUTPUT_NAME ${PROJECT_NAME}
 )
