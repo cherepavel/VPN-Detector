@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 endif()
 
@@ -28,10 +28,9 @@ if(ANDROID)
 endif()
 
 target_compile_options(${PROJECT_NAME} PRIVATE
-        -Wall
-        -Wextra
-        -O2
-        -fPIC
+        -Wall -Wextra -fPIC
+        $<$<CONFIG:Release>:-O3 -DNDEBUG>
+        $<$<CONFIG:Debug>:-g -O0>
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

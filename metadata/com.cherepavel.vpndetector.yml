@@ -1,0 +1,28 @@
+Categories:
+  - Security
+License: MIT
+Web Site: https://github.com/cherepavel/VPN-Detector
+Source Code: https://github.com/cherepavel/VPN-Detector
+Issue Tracker: https://github.com/cherepavel/VPN-Detector/issues
+
+AutoName: VPN Detector
+Summary: Detects active VPN connections and interfaces on Android
+
+Description: |
+  VPN Detector — приложение для обнаружения VPN-соединений.
+  Показывает:
+  - Активные VPN-интерфейсы (tun0, utun и т.д.)
+  - Маршруты ядра
+  - DNS-сервера
+  - Приложения, использующие VPN
+  - И многое другое
+
+  Работает без root и без реклам.
+
+CurrentVersion: 1.0
+CurrentVersionCode: 1
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+VercodeOperation: "%c"
+UpdateCheckData: ".*v([0-9.]+).*|.*-([0-9]+)\.apk"
