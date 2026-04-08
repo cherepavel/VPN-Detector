@@ -1,0 +1,14 @@
+Language: Cpp
+BasedOnStyle: LLVM
+ColumnLimit: 120
+CompactNamespaces: true
+AccessModifierOffset: -4
+ContinuationIndentWidth: 4
+IndentWidth: 4
+SpacesBeforeTrailingComments: 2
+MaxEmptyLinesToKeep: 1
+Standard: Latest
+TabWidth: 4
+UseTab: Never
+Cpp11BracedListStyle: true
+AlwaysBreakTemplateDeclarations: true
