@@ -3,6 +3,7 @@ package com.cherepavel.vpndetector.detector
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import com.cherepavel.vpndetector.model.VpnDetectionResult
 import com.cherepavel.vpndetector.model.VpnNetworkInfo
 import com.cherepavel.vpndetector.util.TransportInfoFormatter
@@ -16,6 +17,7 @@ class VpnDetector(
         val activeNetwork = cm.activeNetwork
         val activeCaps = activeNetwork?.let(cm::getNetworkCapabilities)
 
+        @Suppress("DEPRECATION")
         val allNetworks = cm.allNetworks.toList()
 
         val vpnNetworks = allNetworks.mapNotNull { network ->
@@ -48,6 +50,12 @@ class VpnDetector(
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) add("ETHERNET")
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) add("BLUETOOTH")
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) add("VPN")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI_AWARE)) add("WIFI_AWARE")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_USB)) add("USB")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_THREAD)) add("THREAD")
         }
     }
 

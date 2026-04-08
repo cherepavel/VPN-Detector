@@ -13,7 +13,12 @@ object TunnelNameMatcher {
         "ipsec",
         "xfrm",
         "zt",
-        "tailscale"
+        "tailscale",
+        "svpn",
+        "ovpn",
+        "l2tp",
+        "gre",
+        "he-ipv6"
     )
 
     private val tunnelContains = listOf(

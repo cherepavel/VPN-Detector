@@ -26,19 +26,32 @@ object ReportFormatter {
     data class RawInput(
         val hasTransportVpnAny: Boolean,
         val hasTransportVpnActive: Boolean,
-        val interfaceName: String?,
+        /** Raw value from LinkProperties.getInterfaceName(), always unfiltered. */
+        val rawInterfaceName: String?,
         val transportInfoSummary: String?,
         val nativeTunnelNames: List<String>,
         val nativeDetails: List<String>,
         val javaTunnelNames: List<String>,
-        val installedVpnApps: List<String>
+        val installedVpnApps: List<String>,
+        val dynamicVpnApps: List<String> = emptyList(),
+        val vpnRoutes: List<String> = emptyList(),
+        val vpnDnsServers: List<String> = emptyList(),
+        val underlyingNetworksSummary: String? = null,
+        val kernelRoutes: List<String> = emptyList(),
+        val tunTypeInterfaces: List<String> = emptyList(),
+        val lowMtuInterfaces: List<String> = emptyList(),
+        val proxyInfo: String? = null,
+        val vpnPermissionGranted: Boolean = false,
+        val vpnBandwidthSummary: String? = null,
+        val nativeError: String? = null,
+        val trackedAppsErrors: Map<String, String> = emptyMap()
     )
 
     fun build(input: RawInput): DetectionReport {
         val anyVpn = input.hasTransportVpnAny
         val activeVpn = input.hasTransportVpnActive
 
-        val interfaceDetected = TunnelNameMatcher.looksLikeTunnelName(input.interfaceName)
+        val interfaceDetected = TunnelNameMatcher.looksLikeTunnelName(input.rawInterfaceName)
         val transportInfoDetected = !input.transportInfoSummary.isNullOrBlank()
         val nativeDetected = input.nativeTunnelNames.isNotEmpty()
         val javaDetected = input.javaTunnelNames.isNotEmpty()
@@ -55,7 +68,7 @@ object ReportFormatter {
         )
 
         val apiSignals = buildApiSignals(
-            interfaceName = input.interfaceName,
+            rawInterfaceName = input.rawInterfaceName,
             interfaceDetected = interfaceDetected,
             transportInfoSummary = input.transportInfoSummary,
             transportInfoDetected = transportInfoDetected,
@@ -87,17 +100,74 @@ object ReportFormatter {
             }
         )
 
-        val nativeDetailsText = if (input.nativeDetails.isEmpty()) {
-            "No interfaces were returned by the native detector."
-        } else {
-            input.nativeDetails.joinToString(separator = "\n\n")
+        val nativeDetailsText = buildString {
+            if (input.nativeError != null) {
+                appendLine("Native detector error: ${input.nativeError}")
+                appendLine()
+            }
+            if (input.nativeDetails.isNotEmpty()) {
+                append(input.nativeDetails.joinToString(separator = "\n\n"))
+            } else if (input.nativeError == null) {
+                append("No interfaces were returned by the native detector.")
+            }
+            if (input.tunTypeInterfaces.isNotEmpty()) {
+                append("\n\n--- TUN interfaces (type=65534) ---\n")
+                append(input.tunTypeInterfaces.joinToString(", "))
+            }
+            if (input.lowMtuInterfaces.isNotEmpty()) {
+                append("\n\n--- Low-MTU interfaces (<1500) ---\n")
+                append(input.lowMtuInterfaces.joinToString("\n"))
+            }
+            if (input.vpnRoutes.isNotEmpty()) {
+                append("\n\n--- VPN network routes ---\n")
+                append(input.vpnRoutes.joinToString("\n"))
+            }
+            if (input.vpnDnsServers.isNotEmpty()) {
+                append("\n\n--- VPN DNS servers ---\n")
+                append(input.vpnDnsServers.joinToString(", "))
+            }
+            if (input.underlyingNetworksSummary != null) {
+                append("\n\n--- Underlying physical networks ---\n")
+                append(input.underlyingNetworksSummary)
+            }
+            if (input.vpnBandwidthSummary != null) {
+                append("\n\n--- VPN bandwidth ---\n")
+                append(input.vpnBandwidthSummary)
+            }
+            if (input.kernelRoutes.isNotEmpty()) {
+                append("\n\n--- Kernel route table (/proc/net/route) ---\n")
+                append(input.kernelRoutes.joinToString("\n"))
+            }
+            if (input.proxyInfo != null) {
+                append("\n\n--- Proxy detection ---\n")
+                append(input.proxyInfo)
+            }
+            if (input.vpnPermissionGranted) {
+                append("\n\n--- VPN permission ---\n")
+                append("This app holds Android VPN permission (anomalous for a detector).")
+            }
         }
 
-        val appsText = if (input.installedVpnApps.isEmpty()) {
-            "No known VPN-related apps from the tracked list are installed."
-        } else {
-            input.installedVpnApps.joinToString(separator = "\n") { "• $it" }
+        val dynamicUnknown = input.dynamicVpnApps.filter { pkg ->
+            input.installedVpnApps.none { it.contains(pkg) }
         }
+        val appsText = buildString {
+            if (input.installedVpnApps.isEmpty() && dynamicUnknown.isEmpty()) {
+                append("No VPN-related apps detected.")
+            } else {
+                input.installedVpnApps.forEach { appendLine("• $it") }
+                if (dynamicUnknown.isNotEmpty()) {
+                    if (input.installedVpnApps.isNotEmpty()) appendLine()
+                    appendLine("Detected via VpnService query:")
+                    dynamicUnknown.forEach { appendLine("• $it") }
+                }
+            }
+            if (input.trackedAppsErrors.isNotEmpty()) {
+                if (input.installedVpnApps.isNotEmpty() || dynamicUnknown.isNotEmpty()) appendLine()
+                appendLine("Check errors (package manager returned unexpected error):")
+                input.trackedAppsErrors.forEach { (pkg, err) -> appendLine("• $pkg: $err") }
+            }
+        }.trimEnd()
 
         return DetectionReport(
             overallTitle = overall.title,
@@ -204,7 +274,7 @@ object ReportFormatter {
     }
 
     private fun buildApiSignals(
-        interfaceName: String?,
+        rawInterfaceName: String?,
         interfaceDetected: Boolean,
         transportInfoSummary: String?,
         transportInfoDetected: Boolean,
@@ -230,8 +300,10 @@ object ReportFormatter {
                 "The interface name looks tunnel-like and is consistent with a VPN being present somewhere in the system."
             interfaceDetected ->
                 "The interface name looks tunnel-like, but Android does not currently mark the active path as VPN."
+            rawInterfaceName != null ->
+                "Android returned interface '$rawInterfaceName' but its name does not match tunnel patterns."
             else ->
-                "The interface name does not look like a typical VPN or tunnel interface."
+                "Android returned no interface name for this network."
         }
 
         val transportInfoHint = when {
@@ -249,7 +321,7 @@ object ReportFormatter {
             SignalItem(
                 title = "Interface name",
                 source = "LinkProperties.getInterfaceName()",
-                value = interfaceName ?: "none",
+                value = rawInterfaceName ?: "none",
                 state = interfaceState,
                 hint = interfaceHint
             ),

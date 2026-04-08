@@ -5,14 +5,36 @@ import android.content.pm.PackageManager
 import android.os.Build
 import com.cherepavel.vpndetector.model.TrackedApp
 
+data class TrackedAppsResult(
+    val installed: List<TrackedApp>,
+    val errors: Map<String, String>
+)
+
 class TrackedAppsDetector(
     private val context: Context
 ) {
-    fun detect(): List<TrackedApp> {
-        return TRACKED_APPS.filter { isAppInstalled(it.packageName) }
+    fun detect(): TrackedAppsResult {
+        val installed = mutableListOf<TrackedApp>()
+        val errors = mutableMapOf<String, String>()
+
+        for (app in TRACKED_APPS) {
+            when (val result = checkApp(app.packageName)) {
+                CheckResult.Installed -> installed.add(app)
+                CheckResult.NotInstalled -> Unit
+                is CheckResult.Error -> errors[app.packageName] = result.message
+            }
+        }
+
+        return TrackedAppsResult(installed = installed, errors = errors)
     }
 
-    private fun isAppInstalled(packageName: String): Boolean {
+    private sealed class CheckResult {
+        object Installed : CheckResult()
+        object NotInstalled : CheckResult()
+        data class Error(val message: String) : CheckResult()
+    }
+
+    private fun checkApp(packageName: String): CheckResult {
         return try {
             val pm = context.packageManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -21,9 +43,11 @@ class TrackedAppsDetector(
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(packageName, 0)
             }
-            true
-        } catch (_: Throwable) {
-            false
+            CheckResult.Installed
+        } catch (_: PackageManager.NameNotFoundException) {
+            CheckResult.NotInstalled
+        } catch (e: Throwable) {
+            CheckResult.Error("${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
@@ -45,7 +69,8 @@ class TrackedAppsDetector(
             TrackedApp("com.protonvpn.android", "Proton VPN"),
             TrackedApp("free.vpn.unblock.proxy.turbovpn", "Turbo VPN"),
             TrackedApp("com.zaneschepke.wireguardautotunnel", "WG Tunnel"),
-            TrackedApp("moe.nb4a", "NekoBox")
+            TrackedApp("moe.nb4a", "NekoBox"),
+            TrackedApp("fr.husi", "husi")
         )
     }
 }

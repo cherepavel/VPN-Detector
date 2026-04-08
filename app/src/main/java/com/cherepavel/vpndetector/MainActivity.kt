@@ -7,6 +7,7 @@ import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
@@ -21,10 +22,17 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.NestedScrollView
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.cherepavel.vpndetector.detector.DynamicVpnAppsDetector
 import com.cherepavel.vpndetector.detector.IfconfigTermuxLikeDetector
 import com.cherepavel.vpndetector.detector.JavaInterfacesDetector
+import com.cherepavel.vpndetector.detector.ProxyDetector
 import com.cherepavel.vpndetector.detector.TrackedAppsDetector
 import com.cherepavel.vpndetector.detector.TunnelNameMatcher
+import com.cherepavel.vpndetector.detector.VpnPermissionDetector
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
 import com.cherepavel.vpndetector.ui.ReportFormatter
@@ -85,6 +93,8 @@ class MainActivity : AppCompatActivity() {
 
     private val javaInterfacesDetector by lazy { JavaInterfacesDetector() }
     private val trackedAppsDetector by lazy { TrackedAppsDetector(this) }
+    private val dynamicVpnAppsDetector by lazy { DynamicVpnAppsDetector(this) }
+    private val proxyDetector by lazy { ProxyDetector(this) }
 
     private var lastDetectionReport: DetectionReport? = null
     private var lastNativeDetailsRaw: String = ""
@@ -192,10 +202,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private data class DetectionOutput(
+        val report: DetectionReport,
+        val exportText: String,
+        val javaTunnelNames: List<String>,
+        val installedVpnApps: List<String>
+    )
+
     private fun refreshUi() {
+        buttonRefresh.isEnabled = false
+        lifecycleScope.launch {
+            val output = withContext(Dispatchers.IO) { runDetection() }
+            renderReport(output.report)
+            renderLastUpdate()
+            lastDetectionReport = output.report
+            lastNativeDetailsRaw = output.report.nativeDetails
+            lastJavaTunnelNames = output.javaTunnelNames
+            lastInstalledVpnApps = output.installedVpnApps
+            lastExportText = output.exportText
+            buttonRefresh.isEnabled = true
+        }
+    }
+
+    private fun runDetection(): DetectionOutput {
         val connectivityManager =
             getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+        @Suppress("DEPRECATION")
         val allNetworks = connectivityManager.allNetworks.orEmpty()
         val activeNetwork = connectivityManager.activeNetwork
 
@@ -211,52 +244,115 @@ class MainActivity : AppCompatActivity() {
         val preferredCapabilities: NetworkCapabilities? =
             preferredNetwork?.let(connectivityManager::getNetworkCapabilities)
 
-        val interfaceName = preferredLinkProperties
-            ?.interfaceName
-            ?.takeIf { TunnelNameMatcher.looksLikeTunnelName(it) }
+        // #4: always preserve the raw interface name — filtering happens in ReportFormatter
+        val rawInterfaceName = preferredLinkProperties?.interfaceName
 
         val transportInfoSummary =
             TransportInfoFormatter.summarizeVpnTransportInfo(preferredCapabilities)
 
+        val vpnNetwork = vpnNetworks.firstOrNull()
+        val vpnLinkProps = vpnNetwork?.let(connectivityManager::getLinkProperties)
+        val vpnCaps = vpnNetwork?.let(connectivityManager::getNetworkCapabilities)
+
+        val vpnRoutes = vpnLinkProps?.routes?.map { route ->
+            buildString {
+                append(route.destination.toString())
+                route.gateway?.hostAddress?.let { gw -> append(" via $gw") }
+                if (route.destination.prefixLength == 0) append(" [DEFAULT]")
+            }
+        } ?: emptyList()
+
+        val vpnDnsServers = vpnLinkProps?.dnsServers
+            ?.mapNotNull { it.hostAddress }
+            ?: emptyList()
+
         val nativeResult = IfconfigTermuxLikeDetector.detect()
+        val kernelRoutes = IfconfigTermuxLikeDetector.detectKernelRoutes()
         val javaTunnelNames = javaInterfacesDetector.detectTunnelNames()
 
-        val installedVpnApps = trackedAppsDetector.detect()
-            .map { "${it.label} (${it.packageName})" }
+        // #2: use new TrackedAppsResult that distinguishes not-installed from errors
+        val trackedResult = trackedAppsDetector.detect()
+        val installedVpnApps = trackedResult.installed.map { "${it.label} (${it.packageName})" }
+        val trackedAppsErrors = trackedResult.errors
+
+        val dynamicVpnApps = dynamicVpnAppsDetector.detect()
+
+        val mtuRegex = Regex("mtu (\\d+)")
+        val typeRegex = Regex("type (\\d+)")
+        val tunTypeInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
+            val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
+            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            if (type == 65534) firstLine.substringBefore(':').trim() else null
+        }
+        val lowMtuInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
+            val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
+            val name = firstLine.substringBefore(':').trim()
+            val mtu = mtuRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            val type = typeRegex.find(firstLine)?.groupValues?.get(1)?.toIntOrNull()
+            if (mtu != null && mtu < 1500 && type != 772 && name != "lo") "$name: mtu $mtu" else null
+        }
+
+        val proxyInfo = proxyDetector.detect().summary()
+        val vpnPermissionGranted = VpnPermissionDetector.isThisAppVpnOwner(this)
+        val vpnBandwidthSummary = vpnCaps?.let { caps ->
+            val down = caps.linkDownstreamBandwidthKbps
+            val up = caps.linkUpstreamBandwidthKbps
+            if (down > 0 || up > 0) "↓ $down Kbps  ↑ $up Kbps" else null
+        }
 
         val nativeTunnelNames = nativeResult.matchedInterfaces
             .map { it.substringBefore(':').trim() }
             .distinct()
 
-        val nativeDetails = nativeResult.allInterfaces
-
-        val report = ReportFormatter.build(
-            ReportFormatter.RawInput(
-                hasTransportVpnAny = anyVpn,
-                hasTransportVpnActive = activeVpn,
-                interfaceName = interfaceName,
-                transportInfoSummary = transportInfoSummary,
-                nativeTunnelNames = nativeTunnelNames,
-                nativeDetails = nativeDetails,
-                javaTunnelNames = javaTunnelNames,
-                installedVpnApps = installedVpnApps
-            )
+        val rawInput = ReportFormatter.RawInput(
+            hasTransportVpnAny = anyVpn,
+            hasTransportVpnActive = activeVpn,
+            rawInterfaceName = rawInterfaceName,
+            transportInfoSummary = transportInfoSummary,
+            nativeTunnelNames = nativeTunnelNames,
+            nativeDetails = nativeResult.allInterfaces,
+            javaTunnelNames = javaTunnelNames,
+            installedVpnApps = installedVpnApps,
+            dynamicVpnApps = dynamicVpnApps,
+            vpnRoutes = vpnRoutes,
+            vpnDnsServers = vpnDnsServers,
+            kernelRoutes = kernelRoutes,
+            tunTypeInterfaces = tunTypeInterfaces,
+            lowMtuInterfaces = lowMtuInterfaces,
+            proxyInfo = proxyInfo,
+            vpnPermissionGranted = vpnPermissionGranted,
+            vpnBandwidthSummary = vpnBandwidthSummary,
+            nativeError = nativeResult.nativeError,
+            trackedAppsErrors = trackedAppsErrors
         )
 
-        renderReport(report)
-        renderLastUpdate()
+        val report = ReportFormatter.build(rawInput)
 
-        lastDetectionReport = report
-        lastNativeDetailsRaw = report.nativeDetails
-        lastJavaTunnelNames = javaTunnelNames
-        lastInstalledVpnApps = installedVpnApps
-        lastExportText = ReportExportFormatter.buildText(
+        val exportText = ReportExportFormatter.buildText(
             ReportExportFormatter.ExportInput(
                 report = report,
                 nativeDetailsRaw = report.nativeDetails,
                 javaTunnelNames = javaTunnelNames,
-                installedVpnApps = installedVpnApps
+                installedVpnApps = installedVpnApps,
+                dynamicVpnApps = dynamicVpnApps,
+                vpnRoutes = vpnRoutes,
+                vpnDnsServers = vpnDnsServers,
+                kernelRoutes = kernelRoutes,
+                tunTypeInterfaces = tunTypeInterfaces,
+                lowMtuInterfaces = lowMtuInterfaces,
+                proxyInfo = proxyInfo,
+                vpnPermissionGranted = vpnPermissionGranted,
+                vpnBandwidthSummary = vpnBandwidthSummary,
+                nativeError = nativeResult.nativeError,
+                trackedAppsErrors = trackedAppsErrors
             )
+        )
+
+        return DetectionOutput(
+            report = report,
+            exportText = exportText,
+            javaTunnelNames = javaTunnelNames,
+            installedVpnApps = installedVpnApps
         )
     }
 

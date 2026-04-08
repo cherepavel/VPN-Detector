@@ -2,20 +2,40 @@ package com.cherepavel.vpndetector.detector
 
 object IfconfigTermuxLikeDetector {
 
+    private var libraryLoaded = false
+
     init {
-        try {
+        libraryLoaded = try {
             System.loadLibrary("ifconfigdetector")
-        } catch (_: Throwable) {
+            true
+        } catch (_: UnsatisfiedLinkError) {
+            false
         }
     }
 
     external fun getInterfacesNative(): Array<String>
+    external fun getKernelRoutesNative(): Array<String>
 
     fun detect(): IfconfigTermuxLikeResult {
-        val allBlocks = try {
-            getInterfacesNative().toList()
-        } catch (_: Throwable) {
-            emptyList()
+        if (!libraryLoaded) {
+            return IfconfigTermuxLikeResult(
+                vpnLikely = false,
+                matchedInterfaces = emptyList(),
+                allInterfaces = emptyList(),
+                nativeError = "Native library failed to load"
+            )
+        }
+
+        val allBlocks: List<String>
+        try {
+            allBlocks = getInterfacesNative().toList()
+        } catch (e: Throwable) {
+            return IfconfigTermuxLikeResult(
+                vpnLikely = false,
+                matchedInterfaces = emptyList(),
+                allInterfaces = emptyList(),
+                nativeError = "getInterfacesNative failed: ${e.javaClass.simpleName}: ${e.message}"
+            )
         }
 
         val matched = allBlocks.filter { block ->
@@ -26,7 +46,17 @@ object IfconfigTermuxLikeDetector {
         return IfconfigTermuxLikeResult(
             vpnLikely = matched.isNotEmpty(),
             matchedInterfaces = matched,
-            allInterfaces = allBlocks
+            allInterfaces = allBlocks,
+            nativeError = null
         )
+    }
+
+    fun detectKernelRoutes(): List<String> {
+        if (!libraryLoaded) return emptyList()
+        return try {
+            getKernelRoutesNative().toList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 }
