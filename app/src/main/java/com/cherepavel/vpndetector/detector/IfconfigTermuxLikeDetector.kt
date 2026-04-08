@@ -15,6 +15,7 @@ object IfconfigTermuxLikeDetector {
 
     external fun getInterfacesNative(): Array<String>
     external fun getKernelRoutesNative(): Array<String>
+    external fun getKernelIpv6RoutesNative(): Array<String>
 
     fun detect(): IfconfigTermuxLikeResult {
         if (!libraryLoaded) {
@@ -55,6 +56,15 @@ object IfconfigTermuxLikeDetector {
         if (!libraryLoaded) return emptyList()
         return try {
             getKernelRoutesNative().toList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    fun detectKernelIpv6Routes(): List<String> {
+        if (!libraryLoaded) return emptyList()
+        return try {
+            getKernelIpv6RoutesNative().toList()
         } catch (_: Throwable) {
             emptyList()
         }

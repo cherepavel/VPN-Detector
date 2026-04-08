@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -38,9 +39,12 @@ import com.cherepavel.vpndetector.ui.ReportExportFormatter
 import com.cherepavel.vpndetector.ui.ReportFormatter
 import com.cherepavel.vpndetector.ui.SignalItem
 import com.cherepavel.vpndetector.ui.SignalState
+import com.cherepavel.vpndetector.util.NetworkSignalAnalyzer
 import com.cherepavel.vpndetector.util.TransportInfoFormatter
 import com.cherepavel.vpndetector.util.nowString
 import java.io.OutputStreamWriter
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 class MainActivity : AppCompatActivity() {
 
@@ -95,12 +99,34 @@ class MainActivity : AppCompatActivity() {
     private val trackedAppsDetector by lazy { TrackedAppsDetector(this) }
     private val dynamicVpnAppsDetector by lazy { DynamicVpnAppsDetector(this) }
     private val proxyDetector by lazy { ProxyDetector(this) }
+    private val connectivityManager by lazy {
+        getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    }
 
     private var lastDetectionReport: DetectionReport? = null
     private var lastNativeDetailsRaw: String = ""
     private var lastJavaTunnelNames: List<String> = emptyList()
     private var lastInstalledVpnApps: List<String> = emptyList()
     private var lastExportText: String = ""
+    private var detectionJob: Job? = null
+    private var scheduledRefreshJob: Job? = null
+    private var networkCallbackRegistered = false
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = scheduleRefresh()
+
+        override fun onLost(network: Network) = scheduleRefresh()
+
+        override fun onCapabilitiesChanged(
+            network: Network,
+            networkCapabilities: NetworkCapabilities
+        ) = scheduleRefresh()
+
+        override fun onLinkPropertiesChanged(
+            network: Network,
+            linkProperties: LinkProperties
+        ) = scheduleRefresh()
+    }
 
     private val createDocumentLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
@@ -127,7 +153,15 @@ class MainActivity : AppCompatActivity() {
 
         bindViews()
         setupListeners()
+        registerNetworkCallback()
         refreshUi()
+    }
+
+    override fun onDestroy() {
+        unregisterNetworkCallback()
+        detectionJob?.cancel()
+        scheduledRefreshJob?.cancel()
+        super.onDestroy()
     }
 
     private fun bindViews() {
@@ -210,8 +244,9 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun refreshUi() {
+        detectionJob?.cancel()
         buttonRefresh.isEnabled = false
-        lifecycleScope.launch {
+        detectionJob = lifecycleScope.launch {
             val output = withContext(Dispatchers.IO) { runDetection() }
             renderReport(output.report)
             renderLastUpdate()
@@ -224,17 +259,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun runDetection(): DetectionOutput {
-        val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private fun scheduleRefresh() {
+        scheduledRefreshJob?.cancel()
+        scheduledRefreshJob = lifecycleScope.launch {
+            delay(250)
+            refreshUi()
+        }
+    }
 
+    private fun registerNetworkCallback() {
+        if (networkCallbackRegistered) return
+        val request = NetworkRequest.Builder().build()
+        runCatching {
+            connectivityManager.registerNetworkCallback(request, networkCallback)
+        }.onSuccess {
+            networkCallbackRegistered = true
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        if (!networkCallbackRegistered) return
+        runCatching {
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        }
+        networkCallbackRegistered = false
+    }
+
+    private fun runDetection(): DetectionOutput {
         @Suppress("DEPRECATION")
         val allNetworks = connectivityManager.allNetworks.orEmpty()
         val activeNetwork = connectivityManager.activeNetwork
+        val activeCapabilities = activeNetwork?.let(connectivityManager::getNetworkCapabilities)
 
         val vpnNetworks = allNetworks.filter { hasTransportVpn(connectivityManager, it) }
         val anyVpn = vpnNetworks.isNotEmpty()
-        val activeVpn = activeNetwork?.let { hasTransportVpn(connectivityManager, it) } ?: false
+        val activeVpn = activeCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
 
         val preferredNetwork = vpnNetworks.firstOrNull() ?: activeNetwork ?: allNetworks.firstOrNull()
 
@@ -265,6 +324,16 @@ class MainActivity : AppCompatActivity() {
         val vpnDnsServers = vpnLinkProps?.dnsServers
             ?.mapNotNull { it.hostAddress }
             ?: emptyList()
+        val kernelIpv6Routes = IfconfigTermuxLikeDetector.detectKernelIpv6Routes()
+        val dnsSummary = NetworkSignalAnalyzer.buildDnsSummary(
+            connectivityManager = connectivityManager,
+            networks = allNetworks.toList(),
+            preferredLinkProperties = preferredLinkProperties
+        )
+        val policySummary = NetworkSignalAnalyzer.buildPolicySummary(
+            activeCapabilities = activeCapabilities,
+            preferredCapabilities = preferredCapabilities
+        )
 
         val nativeResult = IfconfigTermuxLikeDetector.detect()
         val kernelRoutes = IfconfigTermuxLikeDetector.detectKernelRoutes()
@@ -316,7 +385,15 @@ class MainActivity : AppCompatActivity() {
             dynamicVpnApps = dynamicVpnApps,
             vpnRoutes = vpnRoutes,
             vpnDnsServers = vpnDnsServers,
+            allDnsServers = dnsSummary.allServers,
+            internalDnsServers = dnsSummary.internalServers,
+            contextualInternalDnsServers = dnsSummary.contextualInternalServers,
+            privateDnsActive = dnsSummary.privateDnsActive,
+            privateDnsServerName = dnsSummary.privateDnsServerName,
+            activeNetworkNotVpn = policySummary.activeNetworkNotVpn,
+            preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
             kernelRoutes = kernelRoutes,
+            kernelIpv6Routes = kernelIpv6Routes,
             tunTypeInterfaces = tunTypeInterfaces,
             lowMtuInterfaces = lowMtuInterfaces,
             proxyInfo = proxyInfo,
@@ -337,7 +414,15 @@ class MainActivity : AppCompatActivity() {
                 dynamicVpnApps = dynamicVpnApps,
                 vpnRoutes = vpnRoutes,
                 vpnDnsServers = vpnDnsServers,
+                allDnsServers = dnsSummary.allServers,
+                internalDnsServers = dnsSummary.internalServers,
+                contextualInternalDnsServers = dnsSummary.contextualInternalServers,
+                privateDnsActive = dnsSummary.privateDnsActive,
+                privateDnsServerName = dnsSummary.privateDnsServerName,
+                activeNetworkNotVpn = policySummary.activeNetworkNotVpn,
+                preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
                 kernelRoutes = kernelRoutes,
+                kernelIpv6Routes = kernelIpv6Routes,
                 tunTypeInterfaces = tunTypeInterfaces,
                 lowMtuInterfaces = lowMtuInterfaces,
                 proxyInfo = proxyInfo,

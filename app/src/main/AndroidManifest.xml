@@ -12,6 +12,12 @@
         <package android:name="net.openvpn.openvpn" />
         <package android:name="com.zaneschepke.wireguardautotunnel" />
         <package android:name="moe.nb4a" />
+        <package android:name="com.protonvpn.android" />
+        <package android:name="ch.protonvpn.android" />
+        <package android:name="com.outline.android" />
+        <package android:name="xyz.safetyvpn.app" />
+        <package android:name="net.mullvad.mullvadvpn" />
+        <package android:name="org.torproject.android" />
     </queries>
 
     <application

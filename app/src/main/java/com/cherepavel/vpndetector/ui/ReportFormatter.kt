@@ -36,8 +36,16 @@ object ReportFormatter {
         val dynamicVpnApps: List<String> = emptyList(),
         val vpnRoutes: List<String> = emptyList(),
         val vpnDnsServers: List<String> = emptyList(),
+        val allDnsServers: List<String> = emptyList(),
+        val internalDnsServers: List<String> = emptyList(),
+        val contextualInternalDnsServers: List<String> = emptyList(),
+        val privateDnsActive: Boolean = false,
+        val privateDnsServerName: String? = null,
+        val activeNetworkNotVpn: Boolean? = null,
+        val preferredNetworkNotVpn: Boolean? = null,
         val underlyingNetworksSummary: String? = null,
         val kernelRoutes: List<String> = emptyList(),
+        val kernelIpv6Routes: List<String> = emptyList(),
         val tunTypeInterfaces: List<String> = emptyList(),
         val lowMtuInterfaces: List<String> = emptyList(),
         val proxyInfo: String? = null,
@@ -53,6 +61,9 @@ object ReportFormatter {
 
         val interfaceDetected = TunnelNameMatcher.looksLikeTunnelName(input.rawInterfaceName)
         val transportInfoDetected = !input.transportInfoSummary.isNullOrBlank()
+        val dnsDetected = input.internalDnsServers.isNotEmpty()
+        val policyDetected =
+            input.activeNetworkNotVpn == false || input.preferredNetworkNotVpn == false
         val nativeDetected = input.nativeTunnelNames.isNotEmpty()
         val javaDetected = input.javaTunnelNames.isNotEmpty()
         val appsDetected = input.installedVpnApps.isNotEmpty()
@@ -62,6 +73,8 @@ object ReportFormatter {
             anyVpn = anyVpn,
             interfaceDetected = interfaceDetected,
             transportInfoDetected = transportInfoDetected,
+            dnsDetected = dnsDetected,
+            policyDetected = policyDetected,
             nativeDetected = nativeDetected,
             javaDetected = javaDetected,
             appsDetected = appsDetected
@@ -72,6 +85,13 @@ object ReportFormatter {
             interfaceDetected = interfaceDetected,
             transportInfoSummary = input.transportInfoSummary,
             transportInfoDetected = transportInfoDetected,
+            allDnsServers = input.allDnsServers,
+            internalDnsServers = input.internalDnsServers,
+            contextualInternalDnsServers = input.contextualInternalDnsServers,
+            privateDnsActive = input.privateDnsActive,
+            privateDnsServerName = input.privateDnsServerName,
+            activeNetworkNotVpn = input.activeNetworkNotVpn,
+            preferredNetworkNotVpn = input.preferredNetworkNotVpn,
             activeVpn = activeVpn,
             anyVpn = anyVpn
         )
@@ -126,6 +146,34 @@ object ReportFormatter {
                 append("\n\n--- VPN DNS servers ---\n")
                 append(input.vpnDnsServers.joinToString(", "))
             }
+            if (input.allDnsServers.isNotEmpty()) {
+                append("\n\n--- DNS servers across visible networks ---\n")
+                append(input.allDnsServers.joinToString("\n"))
+            }
+            if (input.internalDnsServers.isNotEmpty()) {
+                append("\n\n--- Internal/private-range DNS servers ---\n")
+                append(input.internalDnsServers.joinToString("\n"))
+            }
+            if (input.contextualInternalDnsServers.isNotEmpty()) {
+                append("\n\n--- Cellular private DNS observed (not treated as VPN) ---\n")
+                append(input.contextualInternalDnsServers.joinToString("\n"))
+            }
+            if (input.privateDnsActive || input.privateDnsServerName != null) {
+                append("\n\n--- Private DNS ---\n")
+                append(
+                    buildString {
+                        append(if (input.privateDnsActive) "active" else "inactive")
+                        input.privateDnsServerName?.let { append(" ($it)") }
+                    }
+                )
+            }
+            if (input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null) {
+                append("\n\n--- NET_CAPABILITY_NOT_VPN ---\n")
+                append("active=")
+                append(input.activeNetworkNotVpn?.toString() ?: "unknown")
+                append(", preferred=")
+                append(input.preferredNetworkNotVpn?.toString() ?: "unknown")
+            }
             if (input.underlyingNetworksSummary != null) {
                 append("\n\n--- Underlying physical networks ---\n")
                 append(input.underlyingNetworksSummary)
@@ -137,6 +185,10 @@ object ReportFormatter {
             if (input.kernelRoutes.isNotEmpty()) {
                 append("\n\n--- Kernel route table (/proc/net/route) ---\n")
                 append(input.kernelRoutes.joinToString("\n"))
+            }
+            if (input.kernelIpv6Routes.isNotEmpty()) {
+                append("\n\n--- Kernel route table (/proc/net/ipv6_route) ---\n")
+                append(input.kernelIpv6Routes.joinToString("\n"))
             }
             if (input.proxyInfo != null) {
                 append("\n\n--- Proxy detection ---\n")
@@ -194,6 +246,8 @@ object ReportFormatter {
         anyVpn: Boolean,
         interfaceDetected: Boolean,
         transportInfoDetected: Boolean,
+        dnsDetected: Boolean,
+        policyDetected: Boolean,
         nativeDetected: Boolean,
         javaDetected: Boolean,
         appsDetected: Boolean
@@ -223,11 +277,11 @@ object ReportFormatter {
                 )
             }
 
-            interfaceDetected || transportInfoDetected -> {
+            interfaceDetected || transportInfoDetected || dnsDetected || policyDetected -> {
                 OverallBlock(
                     title = "VPN-related API signal",
                     summary = "Android APIs still expose VPN-like indicators even though active TRANSPORT_VPN is absent.",
-                    explanation = "This is weaker than a direct VPN transport flag, but it still suggests that VPN-related state may be visible through official APIs.",
+                    explanation = "This is weaker than a direct VPN transport flag, but interface, DNS, or capability signals still suggest VPN-related state in the visible network stack.",
                     state = SignalState.WARNING,
                     transportState = SignalState.WARNING,
                     transportText = "API SIGNAL",
@@ -278,59 +332,95 @@ object ReportFormatter {
         interfaceDetected: Boolean,
         transportInfoSummary: String?,
         transportInfoDetected: Boolean,
+        allDnsServers: List<String>,
+        internalDnsServers: List<String>,
+        contextualInternalDnsServers: List<String>,
+        privateDnsActive: Boolean,
+        privateDnsServerName: String?,
+        activeNetworkNotVpn: Boolean?,
+        preferredNetworkNotVpn: Boolean?,
         activeVpn: Boolean,
         anyVpn: Boolean
     ): List<SignalItem> {
+        val interfaceTransportDetected = interfaceDetected || transportInfoDetected
         val interfaceState = when {
-            interfaceDetected && (activeVpn || anyVpn) -> SignalState.POSITIVE
-            interfaceDetected -> SignalState.WARNING
+            interfaceTransportDetected && activeVpn -> SignalState.POSITIVE
+            interfaceTransportDetected && anyVpn -> SignalState.SEMI
+            interfaceTransportDetected -> SignalState.WARNING
             else -> SignalState.NEGATIVE
         }
 
-        val transportInfoState = when {
-            transportInfoDetected && (activeVpn || anyVpn) -> SignalState.POSITIVE
-            transportInfoDetected -> SignalState.WARNING
+        val dnsPolicyDetected =
+            internalDnsServers.isNotEmpty() || activeNetworkNotVpn == false || preferredNetworkNotVpn == false
+        val dnsState = when {
+            internalDnsServers.isNotEmpty() && (activeVpn || anyVpn) -> SignalState.POSITIVE
+            dnsPolicyDetected -> SignalState.WARNING
+            privateDnsActive -> SignalState.NEUTRAL
             else -> SignalState.NEGATIVE
         }
 
         val interfaceHint = when {
-            interfaceDetected && activeVpn ->
-                "The interface name itself looks like a tunnel device and matches the active VPN state."
-            interfaceDetected && anyVpn ->
-                "The interface name looks tunnel-like and is consistent with a VPN being present somewhere in the system."
-            interfaceDetected ->
-                "The interface name looks tunnel-like, but Android does not currently mark the active path as VPN."
+            interfaceTransportDetected && activeVpn ->
+                "Interface naming or transport metadata aligns with an active VPN reported by Android."
+            interfaceTransportDetected && anyVpn ->
+                "Interface naming or transport metadata aligns with a VPN that exists somewhere in the system."
+            interfaceTransportDetected ->
+                "Interface naming or transport metadata looks VPN-like, but Android does not currently mark the active path as VPN."
             rawInterfaceName != null ->
-                "Android returned interface '$rawInterfaceName' but its name does not match tunnel patterns."
+                "Android returned interface '$rawInterfaceName' and no VPN-like transport metadata was exposed."
             else ->
-                "Android returned no interface name for this network."
+                "Android returned no interface or transport metadata for this network."
         }
 
-        val transportInfoHint = when {
-            transportInfoDetected && activeVpn ->
-                "Android returned transport info alongside an active VPN transport."
-            transportInfoDetected && anyVpn ->
-                "Transport info is present and aligns with a VPN existing somewhere in the network stack."
-            transportInfoDetected ->
-                "Transport info is present, but without a direct active VPN transport flag."
+        val dnsHint = when {
+            internalDnsServers.isNotEmpty() && (activeVpn || anyVpn) ->
+                "DNS points at internal/private ranges and matches the VPN-related network state."
+            internalDnsServers.isNotEmpty() ->
+                "DNS points at internal/private ranges often used by VPN clients, but Android did not expose TRANSPORT_VPN."
+            contextualInternalDnsServers.isNotEmpty() ->
+                "Carrier/private DNS was observed on a cellular interface and is shown as context only, not as a VPN signal."
+            activeNetworkNotVpn == false || preferredNetworkNotVpn == false ->
+                "At least one inspected network is missing NET_CAPABILITY_NOT_VPN, which is unusual outside VPN-managed paths."
+            privateDnsActive ->
+                "Private DNS is enabled. This is informational on its own, but useful when correlating DNS leak behavior."
             else ->
-                "No VPN-related transport info was exposed here."
+                "No suspicious DNS range or NOT_VPN capability anomaly was exposed here."
         }
+
+        val interfaceValue = listOfNotNull(
+            rawInterfaceName?.let { "iface=$it" },
+            transportInfoSummary?.let { "transport=$it" }
+        ).ifEmpty { listOf("none") }.joinToString(" | ")
+
+        val dnsValue = buildList {
+            if (internalDnsServers.isNotEmpty()) {
+                add("internal=${internalDnsServers.joinToString(", ")}")
+            } else if (contextualInternalDnsServers.isNotEmpty()) {
+                add("cellular_private_dns=${contextualInternalDnsServers.joinToString(", ")} (not treated as VPN)")
+            } else if (allDnsServers.isNotEmpty()) {
+                add("dns=${allDnsServers.joinToString(", ")}")
+            }
+            if (activeNetworkNotVpn != null) add("active_NOT_VPN=$activeNetworkNotVpn")
+            if (preferredNetworkNotVpn != null) add("preferred_NOT_VPN=$preferredNetworkNotVpn")
+            if (privateDnsActive) {
+                add("private_dns=${privateDnsServerName ?: "active"}")
+            }
+        }.ifEmpty { listOf("none") }.joinToString(" | ")
 
         return listOf(
             SignalItem(
-                title = "Interface name",
-                source = "LinkProperties.getInterfaceName()",
-                value = rawInterfaceName ?: "none",
+                title = "Interface / transport",
+                source = "LinkProperties + NetworkCapabilities",
+                value = interfaceValue,
                 state = interfaceState,
                 hint = interfaceHint
             ),
             SignalItem(
-                title = "Transport info",
-                source = "NetworkCapabilities.getTransportInfo()",
-                value = transportInfoSummary ?: "none",
-                state = transportInfoState,
-                hint = transportInfoHint
+                title = "DNS / policy",
+                source = "LinkProperties + NetworkCapabilities",
+                value = dnsValue,
+                state = dnsState,
+                hint = dnsHint
             )
         )
     }

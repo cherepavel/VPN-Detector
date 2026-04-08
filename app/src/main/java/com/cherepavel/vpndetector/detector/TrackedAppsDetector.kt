@@ -67,10 +67,15 @@ class TrackedAppsDetector(
             TrackedApp("com.nordvpn.android", "NordVPN"),
             TrackedApp("com.expressvpn.vpn", "ExpressVPN"),
             TrackedApp("com.protonvpn.android", "Proton VPN"),
+            TrackedApp("ch.protonvpn.android", "Proton VPN (legacy package)"),
             TrackedApp("free.vpn.unblock.proxy.turbovpn", "Turbo VPN"),
             TrackedApp("com.zaneschepke.wireguardautotunnel", "WG Tunnel"),
             TrackedApp("moe.nb4a", "NekoBox"),
-            TrackedApp("fr.husi", "husi")
+            TrackedApp("fr.husi", "husi"),
+            TrackedApp("com.outline.android", "Outline"),
+            TrackedApp("xyz.safetyvpn.app", "SafetyVPN"),
+            TrackedApp("net.mullvad.mullvadvpn", "Mullvad VPN"),
+            TrackedApp("org.torproject.android", "Orbot")
         )
     }
 }

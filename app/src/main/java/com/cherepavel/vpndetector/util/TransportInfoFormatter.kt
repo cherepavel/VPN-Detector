@@ -11,7 +11,9 @@ object TransportInfoFormatter {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
 
         val transportInfo = capabilities.transportInfo ?: return null
-        val text = transportInfo.javaClass.simpleName ?: transportInfo.toString()
+        val simpleName = transportInfo.javaClass.simpleName ?: transportInfo.toString()
+        val vpnType = readVpnType(transportInfo)
+        val text = if (vpnType != null) "$simpleName(type=$vpnType)" else simpleName
 
         return text
             .takeIf { it.isNotBlank() }
@@ -20,5 +22,21 @@ object TransportInfoFormatter {
                 !it.equals("VcnTransportInfo", ignoreCase = true) ||
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
             }
+    }
+
+    private fun readVpnType(transportInfo: Any): String? {
+        val className = transportInfo.javaClass.name
+        if (!className.endsWith("VpnTransportInfo")) return null
+
+        val typeValue = runCatching {
+            transportInfo.javaClass.getMethod("getType").invoke(transportInfo) as? Int
+        }.getOrNull() ?: return null
+
+        return when (typeValue) {
+            1 -> "PLATFORM"
+            2 -> "LEGACY"
+            3 -> "IKEV2"
+            else -> "UNKNOWN:$typeValue"
+        }
     }
 }

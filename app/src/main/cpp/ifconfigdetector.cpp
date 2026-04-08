@@ -6,6 +6,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <array>
 
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -211,6 +212,30 @@ static int countSetBits(unsigned long val) {
     return count;
 }
 
+static bool hexToIpv6Bytes(const std::string& hex, std::array<unsigned char, 16>& out) {
+    if (hex.size() != 32) return false;
+
+    for (size_t i = 0; i < out.size(); ++i) {
+        const auto part = hex.substr(i * 2, 2);
+        char* end = nullptr;
+        const auto value = strtoul(part.c_str(), &end, 16);
+        if (end == nullptr || *end != '\0' || value > 0xFFu) {
+            return false;
+        }
+        out[i] = static_cast<unsigned char>(value);
+    }
+
+    return true;
+}
+
+static std::string hexToIpv6Str(const std::string& hex) {
+    std::array<unsigned char, 16> bytes{};
+    if (!hexToIpv6Bytes(hex, bytes)) return {};
+
+    char buf[INET6_ADDRSTRLEN] = {};
+    return inet_ntop(AF_INET6, bytes.data(), buf, sizeof(buf)) ? std::string(buf) : std::string();
+}
+
 // ---
 
 extern "C"
@@ -355,6 +380,70 @@ Java_com_cherepavel_vpndetector_detector_IfconfigTermuxLikeDetector_getKernelRou
 
     jobjectArray result = env->NewObjectArray(
         static_cast<jsize>(routes.size()), stringCls, nullptr);
+    if (!result) return nullptr;
+
+    for (jsize i = 0; i < static_cast<jsize>(routes.size()); ++i) {
+        jstring text = env->NewStringUTF(routes[i].c_str());
+        env->SetObjectArrayElement(result, i, text);
+        env->DeleteLocalRef(text);
+    }
+
+    return result;
+}
+
+extern "C"
+JNIEXPORT jobjectArray JNICALL
+Java_com_cherepavel_vpndetector_detector_IfconfigTermuxLikeDetector_getKernelIpv6RoutesNative(
+        JNIEnv* env,
+        jobject /* thiz */) {
+
+    jclass stringCls = env->FindClass("java/lang/String");
+    if (!stringCls) return nullptr;
+
+    std::ifstream routeFile("/proc/net/ipv6_route");
+    if (!routeFile.is_open()) {
+        return env->NewObjectArray(0, stringCls, nullptr);
+    }
+
+    std::vector<std::string> routes;
+    std::string line;
+
+    while (std::getline(routeFile, line)) {
+        std::istringstream ss(line);
+        std::string destHex, destPrefixHex, srcHex, srcPrefixHex, nextHopHex;
+        std::string metricHex, refCntHex, useHex, flagsHex, iface;
+        if (!(ss >> destHex >> destPrefixHex >> srcHex >> srcPrefixHex >> nextHopHex
+              >> metricHex >> refCntHex >> useHex >> flagsHex >> iface)) {
+            continue;
+        }
+
+        const auto flags = static_cast<unsigned long>(strtoul(flagsHex.c_str(), nullptr, 16));
+        if (!(flags & 0x0001u)) continue; // skip non-UP routes
+
+        const auto destPrefix = static_cast<unsigned long>(strtoul(destPrefixHex.c_str(), nullptr, 16));
+        const auto dest = hexToIpv6Str(destHex);
+        const auto nextHop = hexToIpv6Str(nextHopHex);
+        if (dest.empty()) continue;
+
+        std::ostringstream route;
+        route << iface << ": " << dest << "/" << destPrefix;
+
+        if (!nextHop.empty() && nextHop != "::") {
+            route << " via " << nextHop;
+        }
+
+        if (destPrefix == 0 && dest == "::") {
+            route << " [DEFAULT]";
+        }
+
+        routes.push_back(route.str());
+    }
+
+    jobjectArray result = env->NewObjectArray(
+            static_cast<jsize>(routes.size()),
+            stringCls,
+            nullptr
+    );
     if (!result) return nullptr;
 
     for (jsize i = 0; i < static_cast<jsize>(routes.size()); ++i) {

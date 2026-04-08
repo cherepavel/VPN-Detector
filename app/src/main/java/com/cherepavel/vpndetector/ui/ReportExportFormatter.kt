@@ -12,8 +12,16 @@ object ReportExportFormatter {
         val dynamicVpnApps: List<String> = emptyList(),
         val vpnRoutes: List<String> = emptyList(),
         val vpnDnsServers: List<String> = emptyList(),
+        val allDnsServers: List<String> = emptyList(),
+        val internalDnsServers: List<String> = emptyList(),
+        val contextualInternalDnsServers: List<String> = emptyList(),
+        val privateDnsActive: Boolean = false,
+        val privateDnsServerName: String? = null,
+        val activeNetworkNotVpn: Boolean? = null,
+        val preferredNetworkNotVpn: Boolean? = null,
         val underlyingNetworksSummary: String? = null,
         val kernelRoutes: List<String> = emptyList(),
+        val kernelIpv6Routes: List<String> = emptyList(),
         val tunTypeInterfaces: List<String> = emptyList(),
         val lowMtuInterfaces: List<String> = emptyList(),
         val proxyInfo: String? = null,
@@ -56,6 +64,10 @@ object ReportExportFormatter {
             }
 
             if (input.vpnRoutes.isNotEmpty() || input.vpnDnsServers.isNotEmpty() ||
+                input.allDnsServers.isNotEmpty() || input.internalDnsServers.isNotEmpty() ||
+                input.contextualInternalDnsServers.isNotEmpty() ||
+                input.privateDnsActive || input.privateDnsServerName != null ||
+                input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null ||
                 input.underlyingNetworksSummary != null || input.vpnBandwidthSummary != null) {
                 appendLine("=== VPN NETWORK DETAILS ===")
                 if (input.vpnRoutes.isNotEmpty()) {
@@ -65,13 +77,40 @@ object ReportExportFormatter {
                 if (input.vpnDnsServers.isNotEmpty()) {
                     appendLine("DNS servers: ${input.vpnDnsServers.joinToString(", ")}")
                 }
+                if (input.allDnsServers.isNotEmpty()) {
+                    appendLine("DNS across visible networks:")
+                    input.allDnsServers.forEach { appendLine("  $it") }
+                }
+                if (input.internalDnsServers.isNotEmpty()) {
+                    appendLine("Internal/private-range DNS servers:")
+                    input.internalDnsServers.forEach { appendLine("  $it") }
+                }
+                if (input.contextualInternalDnsServers.isNotEmpty()) {
+                    appendLine("Cellular private DNS observed (not treated as VPN):")
+                    input.contextualInternalDnsServers.forEach { appendLine("  $it") }
+                }
+                if (input.privateDnsActive || input.privateDnsServerName != null) {
+                    appendLine(
+                        "Private DNS: " + buildString {
+                            append(if (input.privateDnsActive) "active" else "inactive")
+                            input.privateDnsServerName?.let { append(" ($it)") }
+                        }
+                    )
+                }
+                if (input.activeNetworkNotVpn != null || input.preferredNetworkNotVpn != null) {
+                    appendLine(
+                        "NET_CAPABILITY_NOT_VPN: active=${input.activeNetworkNotVpn ?: "unknown"}, " +
+                            "preferred=${input.preferredNetworkNotVpn ?: "unknown"}"
+                    )
+                }
                 input.underlyingNetworksSummary?.let { appendLine("Underlying networks: $it") }
                 input.vpnBandwidthSummary?.let { appendLine("Bandwidth: $it") }
                 appendLine()
             }
 
             if (input.tunTypeInterfaces.isNotEmpty() || input.lowMtuInterfaces.isNotEmpty() ||
-                input.kernelRoutes.isNotEmpty() || input.proxyInfo != null || input.vpnPermissionGranted) {
+                input.kernelRoutes.isNotEmpty() || input.kernelIpv6Routes.isNotEmpty() ||
+                input.proxyInfo != null || input.vpnPermissionGranted) {
                 appendLine("=== ADDITIONAL SIGNALS ===")
                 if (input.tunTypeInterfaces.isNotEmpty()) {
                     appendLine("TUN interfaces (type=65534): ${input.tunTypeInterfaces.joinToString(", ")}")
@@ -83,6 +122,10 @@ object ReportExportFormatter {
                 if (input.kernelRoutes.isNotEmpty()) {
                     appendLine("Kernel route table (/proc/net/route):")
                     input.kernelRoutes.forEach { appendLine("  $it") }
+                }
+                if (input.kernelIpv6Routes.isNotEmpty()) {
+                    appendLine("Kernel route table (/proc/net/ipv6_route):")
+                    input.kernelIpv6Routes.forEach { appendLine("  $it") }
                 }
                 input.proxyInfo?.let {
                     appendLine("Proxy detected:")
