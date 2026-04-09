@@ -374,24 +374,23 @@ object ReportFormatter {
         }
 
         val interfaceValue = listOfNotNull(
-            rawInterfaceName?.let { "iface=$it" },
-            transportInfoSummary?.let { "transport=$it" }
-        ).ifEmpty { listOf("none") }.joinToString(" | ")
+            rawInterfaceName,
+            transportInfoSummary?.let { "transport: $it" }
+        ).ifEmpty { listOf("none") }.joinToString("\n")
 
         val dnsValue = buildList {
-            if (internalDnsServers.isNotEmpty()) {
-                add("internal=${internalDnsServers.joinToString(", ")}")
-            } else if (contextualInternalDnsServers.isNotEmpty()) {
-                add("cellular_private_dns=${contextualInternalDnsServers.joinToString(", ")} (not treated as VPN)")
-            } else if (allDnsServers.isNotEmpty()) {
-                add("dns=${allDnsServers.joinToString(", ")}")
+            when {
+                internalDnsServers.isNotEmpty() ->
+                    add(internalDnsServers.map(::stripIfacePrefix).joinToString("\n"))
+                contextualInternalDnsServers.isNotEmpty() ->
+                    add(contextualInternalDnsServers.map(::stripIfacePrefix).joinToString("\n") + "\n(cellular)")
+                allDnsServers.isNotEmpty() ->
+                    add(allDnsServers.map(::stripIfacePrefix).joinToString("\n"))
             }
-            if (activeNetworkNotVpn != null) add("active_NOT_VPN=$activeNetworkNotVpn")
-            if (preferredNetworkNotVpn != null) add("preferred_NOT_VPN=$preferredNetworkNotVpn")
-            if (privateDnsActive) {
-                add("private_dns=${privateDnsServerName ?: "active"}")
-            }
-        }.ifEmpty { listOf("none") }.joinToString(" | ")
+            if (activeNetworkNotVpn == false) add("NOT_VPN cleared (active)")
+            if (preferredNetworkNotVpn == false) add("NOT_VPN cleared (preferred)")
+            if (privateDnsActive) add("DoH: ${privateDnsServerName ?: "on"}")
+        }.ifEmpty { listOf("none") }.joinToString("\n")
 
         return listOf(
             SignalItem(
@@ -420,6 +419,10 @@ object ReportFormatter {
         val transportText: String,
         val transportSubtitle: String
     )
+
+    /** "wlan0:10.0.2.3" → "10.0.2.3", plain IPs pass through unchanged. */
+    private fun stripIfacePrefix(s: String): String =
+        if (':' in s) s.substringAfter(':') else s
 
     private fun DetectionConfidence.label(): String {
         return when (this) {

@@ -25,7 +25,7 @@ class DetectionEngine(
 
     override fun detect(): DetectionSnapshot {
         @Suppress("DEPRECATION")
-        val allNetworks = connectivityManager.allNetworks.orEmpty()
+        val allNetworks = connectivityManager.allNetworks
         val activeNetwork = connectivityManager.activeNetwork
         val activeCapabilities = activeNetwork?.let(connectivityManager::getNetworkCapabilities)
 

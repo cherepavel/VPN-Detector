@@ -12,7 +12,7 @@ object AlwaysOnVpnDetector {
 
     fun detect(connectivityManager: ConnectivityManager): Result {
         @Suppress("DEPRECATION")
-        val allNetworks = connectivityManager.allNetworks.orEmpty()
+        val allNetworks = connectivityManager.allNetworks
         val capsList = allNetworks.mapNotNull { connectivityManager.getNetworkCapabilities(it) }
 
         val hasVpnNetwork = capsList.any { it.hasTransport(NetworkCapabilities.TRANSPORT_VPN) }

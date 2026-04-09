@@ -1,6 +1,6 @@
 package com.cherepavel.vpndetector
 
-import android.content.Context
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.LinkProperties
@@ -25,6 +25,7 @@ import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cherepavel.vpndetector.detector.DetectionEngine
 import com.cherepavel.vpndetector.detector.IDetectionEngine
+import com.cherepavel.vpndetector.detector.TrackedAppsRepository
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
@@ -32,12 +33,12 @@ import com.cherepavel.vpndetector.ui.ReportFormatter
 import com.cherepavel.vpndetector.ui.SignalItem
 import com.cherepavel.vpndetector.ui.SignalState
 import com.cherepavel.vpndetector.util.nowString
-import java.io.OutputStreamWriter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.OutputStreamWriter
 
 class MainActivity : AppCompatActivity() {
 
@@ -89,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var apiSignalHints: List<TextView>
 
     private val connectivityManager by lazy {
-        getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
     }
     private val detectionEngine: IDetectionEngine by lazy { DetectionEngine(this, connectivityManager) }
 
@@ -140,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         setupListeners()
         registerNetworkCallback()
+        lifecycleScope.launch(Dispatchers.IO) { TrackedAppsRepository.refresh(applicationContext) }
         refreshUi()
     }
 
@@ -199,6 +201,7 @@ class MainActivity : AppCompatActivity() {
         apiSignalHints = listOf(textApiSignalHint1, textApiSignalHint2)
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupListeners() {
         buttonRefresh.setOnClickListener { refreshUi() }
 
@@ -371,6 +374,7 @@ class MainActivity : AppCompatActivity() {
         applyValueTextColor(valueView, item.state)
     }
 
+    @SuppressLint("SetTextI18n")
     private fun renderLastUpdate() {
         textLastUpdate.text = "Last update: ${nowString()}"
     }

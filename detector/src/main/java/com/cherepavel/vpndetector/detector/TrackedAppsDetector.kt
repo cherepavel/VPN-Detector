@@ -17,7 +17,7 @@ class TrackedAppsDetector(
         val installed = mutableListOf<TrackedApp>()
         val errors = mutableMapOf<String, String>()
 
-        for (app in TRACKED_APPS) {
+        for (app in TrackedAppsRepository.get(context)) {
             when (val result = checkApp(app.packageName)) {
                 CheckResult.Installed -> installed.add(app)
                 CheckResult.NotInstalled -> Unit
@@ -51,31 +51,4 @@ class TrackedAppsDetector(
         }
     }
 
-    companion object {
-        private val TRACKED_APPS = listOf(
-            TrackedApp("com.github.dyhkwong.sagernet", "ExclaveVPN"),
-            TrackedApp("com.v2ray.ang", "v2rayNG"),
-            TrackedApp("org.amnezia.awg", "AmneziaWG"),
-            TrackedApp("org.amnezia.vpn", "Amnezia VPN"),
-            TrackedApp("de.blinkt.openvpn", "OpenVPN for Android"),
-            TrackedApp("net.openvpn.openvpn", "OpenVPN Connect"),
-            TrackedApp("com.wireguard.android", "WireGuard"),
-            TrackedApp("com.cloudflare.onedotonedotonedotone", "Cloudflare WARP"),
-            TrackedApp("com.psiphon3", "Psiphon"),
-            TrackedApp("app.hiddify.com", "Hiddify"),
-            TrackedApp("io.nekohasekai.sfa", "SFA"),
-            TrackedApp("com.nordvpn.android", "NordVPN"),
-            TrackedApp("com.expressvpn.vpn", "ExpressVPN"),
-            TrackedApp("com.protonvpn.android", "Proton VPN"),
-            TrackedApp("ch.protonvpn.android", "Proton VPN (legacy package)"),
-            TrackedApp("free.vpn.unblock.proxy.turbovpn", "Turbo VPN"),
-            TrackedApp("com.zaneschepke.wireguardautotunnel", "WG Tunnel"),
-            TrackedApp("moe.nb4a", "NekoBox"),
-            TrackedApp("fr.husi", "husi"),
-            TrackedApp("com.outline.android", "Outline"),
-            TrackedApp("xyz.safetyvpn.app", "SafetyVPN"),
-            TrackedApp("net.mullvad.mullvadvpn", "Mullvad VPN"),
-            TrackedApp("org.torproject.android", "Orbot")
-        )
-    }
 }
