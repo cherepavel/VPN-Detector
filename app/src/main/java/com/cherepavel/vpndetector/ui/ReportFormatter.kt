@@ -5,6 +5,12 @@ import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.model.DetectionStatus
 
+data class DetailSection(
+    val title: String,
+    val body: String,
+    val state: SignalState = SignalState.NEUTRAL
+)
+
 data class DetectionReport(
     val overallTitle: String,
     val overallSummary: String,
@@ -22,6 +28,7 @@ data class DetectionReport(
     val apiSignals: List<SignalItem>,
     val nativeSignal: SignalItem,
     val nativeDetails: String,
+    val extraSections: List<DetailSection>,
     val javaSignal: SignalItem,
     val knownAppsText: String
 )
@@ -104,82 +111,184 @@ object ReportFormatter {
             } else if (snapshot.nativeError == null) {
                 append("No interfaces were returned by the native detector.")
             }
+        }.trim()
+
+        val extraSections = buildList {
             if (snapshot.tunTypeInterfaces.isNotEmpty()) {
-                append("\n\n--- TUN interfaces (type=65534) ---\n")
-                append(snapshot.tunTypeInterfaces.joinToString(", "))
-            }
-            if (snapshot.lowMtuInterfaces.isNotEmpty()) {
-                append("\n\n--- Low-MTU interfaces (<1500) ---\n")
-                append(snapshot.lowMtuInterfaces.joinToString("\n"))
-            }
-            if (snapshot.vpnRoutes.isNotEmpty()) {
-                append("\n\n--- VPN network routes ---\n")
-                append(snapshot.vpnRoutes.joinToString("\n"))
-            }
-            if (snapshot.vpnDnsServers.isNotEmpty()) {
-                append("\n\n--- VPN DNS servers ---\n")
-                append(snapshot.vpnDnsServers.joinToString(", "))
-            }
-            if (snapshot.allDnsServers.isNotEmpty()) {
-                append("\n\n--- DNS servers across visible networks ---\n")
-                append(snapshot.allDnsServers.joinToString("\n"))
-            }
-            if (snapshot.internalDnsServers.isNotEmpty()) {
-                append("\n\n--- Internal/private-range DNS servers ---\n")
-                append(snapshot.internalDnsServers.joinToString("\n"))
-            }
-            if (snapshot.contextualInternalDnsServers.isNotEmpty()) {
-                append("\n\n--- Cellular private DNS observed (not treated as VPN) ---\n")
-                append(snapshot.contextualInternalDnsServers.joinToString("\n"))
-            }
-            if (snapshot.privateDnsActive || snapshot.privateDnsServerName != null) {
-                append("\n\n--- Private DNS ---\n")
-                append(
-                    buildString {
-                        append(if (snapshot.privateDnsActive) "active" else "inactive")
-                        snapshot.privateDnsServerName?.let { append(" ($it)") }
-                    }
+                add(
+                    DetailSection(
+                        title = "TUN interfaces",
+                        body = snapshot.tunTypeInterfaces.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
                 )
             }
+
+            if (snapshot.lowMtuInterfaces.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "Low-MTU interfaces",
+                        body = snapshot.lowMtuInterfaces.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
+                )
+            }
+
+            if (snapshot.vpnRoutes.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "VPN network routes",
+                        body = snapshot.vpnRoutes.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
+                )
+            }
+
+            if (snapshot.vpnDnsServers.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "VPN DNS servers",
+                        body = snapshot.vpnDnsServers.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
+                )
+            }
+
+            if (snapshot.allDnsServers.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "DNS across visible networks",
+                        body = snapshot.allDnsServers.joinToString("\n"),
+                        state = SignalState.NEUTRAL
+                    )
+                )
+            }
+
+            if (snapshot.internalDnsServers.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "Internal/private-range DNS servers",
+                        body = snapshot.internalDnsServers.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
+                )
+            }
+
+            if (snapshot.contextualInternalDnsServers.isNotEmpty()) {
+                add(
+                    DetailSection(
+                        title = "Cellular private DNS observed (context only)",
+                        body = snapshot.contextualInternalDnsServers.joinToString("\n"),
+                        state = SignalState.NEUTRAL
+                    )
+                )
+            }
+
+            if (snapshot.privateDnsActive || snapshot.privateDnsServerName != null) {
+                add(
+                    DetailSection(
+                        title = "Private DNS",
+                        body = buildString {
+                            append(if (snapshot.privateDnsActive) "active" else "inactive")
+                            snapshot.privateDnsServerName?.let { append(" ($it)") }
+                        },
+                        state = SignalState.NEUTRAL
+                    )
+                )
+            }
+
             if (snapshot.activeNetworkNotVpn != null || snapshot.preferredNetworkNotVpn != null) {
-                append("\n\n--- NET_CAPABILITY_NOT_VPN ---\n")
-                append("active=")
-                append(snapshot.activeNetworkNotVpn?.toString() ?: "unknown")
-                append(", preferred=")
-                append(snapshot.preferredNetworkNotVpn?.toString() ?: "unknown")
+                add(
+                    DetailSection(
+                        title = "NET_CAPABILITY_NOT_VPN",
+                        body = "active=${snapshot.activeNetworkNotVpn ?: "unknown"}, preferred=${snapshot.preferredNetworkNotVpn ?: "unknown"}",
+                        state = if (
+                            snapshot.activeNetworkNotVpn == false ||
+                            snapshot.preferredNetworkNotVpn == false
+                        ) {
+                            SignalState.WARNING
+                        } else {
+                            SignalState.NEUTRAL
+                        }
+                    )
+                )
             }
-            if (snapshot.vpnBandwidthSummary != null) {
-                append("\n\n--- VPN bandwidth ---\n")
-                append(snapshot.vpnBandwidthSummary)
+
+            snapshot.vpnBandwidthSummary?.let {
+                add(
+                    DetailSection(
+                        title = "VPN bandwidth",
+                        body = it,
+                        state = SignalState.NEUTRAL
+                    )
+                )
             }
+
             if (snapshot.kernelRoutes.isNotEmpty()) {
-                append("\n\n--- Kernel route table (/proc/net/route) ---\n")
-                append(snapshot.kernelRoutes.joinToString("\n"))
+                add(
+                    DetailSection(
+                        title = "Kernel route table (/proc/net/route)",
+                        body = snapshot.kernelRoutes.joinToString("\n"),
+                        state = SignalState.NEUTRAL
+                    )
+                )
             }
+
             if (snapshot.kernelIpv6Routes.isNotEmpty()) {
-                append("\n\n--- Kernel route table (/proc/net/ipv6_route) ---\n")
-                append(snapshot.kernelIpv6Routes.joinToString("\n"))
+                add(
+                    DetailSection(
+                        title = "Kernel route table (/proc/net/ipv6_route)",
+                        body = snapshot.kernelIpv6Routes.joinToString("\n"),
+                        state = SignalState.NEUTRAL
+                    )
+                )
             }
+
             if (snapshot.vpnPermissionGranted) {
-                append("\n\n--- VPN permission ---\n")
-                append("This app holds Android VPN permission (anomalous for a detector).")
+                add(
+                    DetailSection(
+                        title = "VPN permission",
+                        body = "This app holds Android VPN permission (anomalous for a detector).",
+                        state = SignalState.WARNING
+                    )
+                )
             }
+
             if (snapshot.lockdownLikely) {
-                append("\n\n--- Always-on / lockdown ---\n")
-                append("VPN present and no validated non-VPN path exists. Lockdown mode is likely active.")
+                add(
+                    DetailSection(
+                        title = "Always-on / lockdown",
+                        body = "VPN present and no validated non-VPN path exists. Lockdown mode is likely active.",
+                        state = SignalState.WARNING
+                    )
+                )
             }
+
             if (snapshot.knownVpnDnsMatches.isNotEmpty()) {
-                append("\n\n--- Known VPN provider DNS ---\n")
-                append(snapshot.knownVpnDnsMatches.joinToString("\n"))
+                add(
+                    DetailSection(
+                        title = "Known VPN provider DNS",
+                        body = snapshot.knownVpnDnsMatches.joinToString("\n"),
+                        state = SignalState.WARNING
+                    )
+                )
             }
+
             if (snapshot.workProfileCount > 1 || snapshot.isManagedProfile) {
-                append("\n\n--- Work / managed profile ---\n")
-                if (snapshot.isManagedProfile) {
-                    append("Running inside a managed profile.\n")
-                }
-                if (snapshot.workProfileCount > 1) {
-                    append("${snapshot.workProfileCount} user profiles detected. VPN apps in other profiles are not visible to this detector.")
-                }
+                add(
+                    DetailSection(
+                        title = "Work / managed profile",
+                        body = buildString {
+                            if (snapshot.isManagedProfile) {
+                                appendLine("Running inside a managed profile.")
+                            }
+                            if (snapshot.workProfileCount > 1) {
+                                append("${snapshot.workProfileCount} user profiles detected. VPN apps in other profiles are not visible to this detector.")
+                            }
+                        }.trim(),
+                        state = SignalState.NEUTRAL
+                    )
+                )
             }
         }
 
@@ -195,7 +304,9 @@ object ReportFormatter {
                 }
             }
             if (snapshot.trackedAppsErrors.isNotEmpty()) {
-                if (snapshot.installedVpnApps.isNotEmpty() || snapshot.unknownDynamicApps.isNotEmpty()) appendLine()
+                if (snapshot.installedVpnApps.isNotEmpty() || snapshot.unknownDynamicApps.isNotEmpty()) {
+                    appendLine()
+                }
                 appendLine("Check errors (package manager returned unexpected error):")
                 snapshot.trackedAppsErrors.forEach { (pkg, err) -> appendLine("• $pkg: $err") }
             }
@@ -218,6 +329,7 @@ object ReportFormatter {
             apiSignals = apiSignals,
             nativeSignal = nativeSignal,
             nativeDetails = nativeDetailsText,
+            extraSections = extraSections,
             javaSignal = javaSignal,
             knownAppsText = appsText
         )
@@ -237,9 +349,15 @@ object ReportFormatter {
     ): OverallBlock {
         val confidenceText = snapshot.assessment.confidence.label()
         val scoreText = "Confidence: $confidenceText (${snapshot.assessment.score}/100)."
+
         return when {
             snapshot.assessment.status == DetectionStatus.ACTIVE_VPN || activeVpn -> {
-                val lockdownNote = if (snapshot.lockdownLikely) " Lockdown mode appears active — no non-VPN path is validated." else ""
+                val lockdownNote = if (snapshot.lockdownLikely) {
+                    " Lockdown mode appears active — no non-VPN path is validated."
+                } else {
+                    ""
+                }
+
                 OverallBlock(
                     title = if (snapshot.lockdownLikely) "VPN detected (lockdown)" else "VPN detected",
                     summary = "The active network is explicitly marked as VPN by Android.$lockdownNote",
@@ -337,7 +455,10 @@ object ReportFormatter {
         }
 
         val dnsPolicyDetected =
-            internalDnsServers.isNotEmpty() || activeNetworkNotVpn == false || preferredNetworkNotVpn == false
+            internalDnsServers.isNotEmpty() ||
+                    activeNetworkNotVpn == false ||
+                    preferredNetworkNotVpn == false
+
         val dnsState = when {
             internalDnsServers.isNotEmpty() && (activeVpn || anyVpn) -> SignalState.POSITIVE
             dnsPolicyDetected -> SignalState.WARNING
@@ -420,7 +541,6 @@ object ReportFormatter {
         val transportSubtitle: String
     )
 
-    /** "wlan0:10.0.2.3" → "10.0.2.3", plain IPs pass through unchanged. */
     private fun stripIfacePrefix(s: String): String =
         if (':' in s) s.substringAfter(':') else s
 

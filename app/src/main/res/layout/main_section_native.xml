@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+        android:id="@+id/cardNativeSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_card_surface"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Native low-level enumeration"
+            android:textColor="?attr/appColorOnSurface"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Experimental signal from native interface discovery"
+            android:textColor="?attr/appColorOnSurfaceMuted"
+            android:textSize="12sp" />
+
+        <include
+            android:id="@+id/cardNativeSignal"
+            layout="@layout/common_item_signal_card_full" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/scrollNativeDetails"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card_inner"
+            android:fillViewport="true"
+            android:overScrollMode="ifContentScrolls"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/textNativeDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="2dp"
+                android:padding="12dp"
+                android:text="-"
+                android:textColor="?attr/appColorOnSurfaceMuted"
+                android:textSize="12sp" />
+        </androidx.core.widget.NestedScrollView>
+
+    </LinearLayout>
+
+</merge>

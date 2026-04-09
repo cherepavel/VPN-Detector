@@ -21,7 +21,7 @@ import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cherepavel.vpndetector.detector.DetectionEngine
 import com.cherepavel.vpndetector.detector.IDetectionEngine
-import com.cherepavel.vpndetector.model.DetectionSnapshot
+import com.cherepavel.vpndetector.ui.DetailSection
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
 import com.cherepavel.vpndetector.ui.ReportFormatter
@@ -52,41 +52,26 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var cardApiSignal1: LinearLayout
     private lateinit var cardApiSignal2: LinearLayout
-    private lateinit var textApiSignalTitle1: TextView
-    private lateinit var textApiSignalTitle2: TextView
-    private lateinit var textApiSignalSource1: TextView
-    private lateinit var textApiSignalSource2: TextView
-    private lateinit var textApiSignalValue1: TextView
-    private lateinit var textApiSignalValue2: TextView
-    private lateinit var textApiSignalHint1: TextView
-    private lateinit var textApiSignalHint2: TextView
 
     private lateinit var cardNativeSignal: LinearLayout
-    private lateinit var textNativeSignalTitle: TextView
-    private lateinit var textNativeSignalSource: TextView
-    private lateinit var textNativeSignalValue: TextView
-    private lateinit var textNativeSignalHint: TextView
     private lateinit var textNativeDetails: TextView
     private lateinit var scrollNativeDetails: NestedScrollView
 
+    private lateinit var containerExtraSections: LinearLayout
+
     private lateinit var cardJavaSignal: LinearLayout
-    private lateinit var textJavaSignalTitle: TextView
-    private lateinit var textJavaSignalSource: TextView
-    private lateinit var textJavaSignalValue: TextView
-    private lateinit var textJavaSignalHint: TextView
 
     private lateinit var textKnownApps: TextView
 
     private lateinit var apiSignalCards: List<LinearLayout>
-    private lateinit var apiSignalTitles: List<TextView>
-    private lateinit var apiSignalSources: List<TextView>
-    private lateinit var apiSignalValues: List<TextView>
-    private lateinit var apiSignalHints: List<TextView>
 
     private val connectivityManager by lazy {
         getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
     }
-    private val detectionEngine: IDetectionEngine by lazy { DetectionEngine(this, connectivityManager) }
+
+    private val detectionEngine: IDetectionEngine by lazy {
+        DetectionEngine(this, connectivityManager)
+    }
 
     private var lastExportText: String = ""
     private var detectionJob: Job? = null
@@ -141,36 +126,18 @@ class MainActivity : AppCompatActivity() {
 
         cardApiSignal1 = findViewById(R.id.cardApiSignal1)
         cardApiSignal2 = findViewById(R.id.cardApiSignal2)
-        textApiSignalTitle1 = findViewById(R.id.textApiSignalTitle1)
-        textApiSignalTitle2 = findViewById(R.id.textApiSignalTitle2)
-        textApiSignalSource1 = findViewById(R.id.textApiSignalSource1)
-        textApiSignalSource2 = findViewById(R.id.textApiSignalSource2)
-        textApiSignalValue1 = findViewById(R.id.textApiSignalValue1)
-        textApiSignalValue2 = findViewById(R.id.textApiSignalValue2)
-        textApiSignalHint1 = findViewById(R.id.textApiSignalHint1)
-        textApiSignalHint2 = findViewById(R.id.textApiSignalHint2)
 
         cardNativeSignal = findViewById(R.id.cardNativeSignal)
-        textNativeSignalTitle = findViewById(R.id.textNativeSignalTitle)
-        textNativeSignalSource = findViewById(R.id.textNativeSignalSource)
-        textNativeSignalValue = findViewById(R.id.textNativeSignalValue)
-        textNativeSignalHint = findViewById(R.id.textNativeSignalHint)
         textNativeDetails = findViewById(R.id.textNativeDetails)
         scrollNativeDetails = findViewById(R.id.scrollNativeDetails)
 
+        containerExtraSections = findViewById(R.id.containerExtraSections)
+
         cardJavaSignal = findViewById(R.id.cardJavaSignal)
-        textJavaSignalTitle = findViewById(R.id.textJavaSignalTitle)
-        textJavaSignalSource = findViewById(R.id.textJavaSignalSource)
-        textJavaSignalValue = findViewById(R.id.textJavaSignalValue)
-        textJavaSignalHint = findViewById(R.id.textJavaSignalHint)
 
         textKnownApps = findViewById(R.id.textKnownApps)
 
         apiSignalCards = listOf(cardApiSignal1, cardApiSignal2)
-        apiSignalTitles = listOf(textApiSignalTitle1, textApiSignalTitle2)
-        apiSignalSources = listOf(textApiSignalSource1, textApiSignalSource2)
-        apiSignalValues = listOf(textApiSignalValue1, textApiSignalValue2)
-        apiSignalHints = listOf(textApiSignalHint1, textApiSignalHint2)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -199,7 +166,6 @@ class MainActivity : AppCompatActivity() {
 
     private data class DetectionOutput(
         val report: DetectionReport,
-        val snapshot: DetectionSnapshot,
         val exportText: String
     )
 
@@ -207,6 +173,7 @@ class MainActivity : AppCompatActivity() {
         detectionJob?.cancel()
         buttonRefresh.isEnabled = false
         buttonReport.isEnabled = false
+
         detectionJob = lifecycleScope.launch {
             val output = withContext(Dispatchers.IO) { runDetection() }
             renderReport(output.report)
@@ -230,7 +197,6 @@ class MainActivity : AppCompatActivity() {
 
         return DetectionOutput(
             report = report,
-            snapshot = snapshot,
             exportText = exportText
         )
     }
@@ -264,20 +230,14 @@ class MainActivity : AppCompatActivity() {
 
         bindSignalCard(
             card = cardNativeSignal,
-            titleView = textNativeSignalTitle,
-            sourceView = textNativeSignalSource,
-            valueView = textNativeSignalValue,
-            hintView = textNativeSignalHint,
             item = report.nativeSignal
         )
+
         textNativeDetails.text = report.nativeDetails
+        renderExtraSections(report.extraSections)
 
         bindSignalCard(
             card = cardJavaSignal,
-            titleView = textJavaSignalTitle,
-            sourceView = textJavaSignalSource,
-            valueView = textJavaSignalValue,
-            hintView = textJavaSignalHint,
             item = report.javaSignal
         )
 
@@ -294,23 +254,41 @@ class MainActivity : AppCompatActivity() {
 
             bindSignalCard(
                 card = card,
-                titleView = apiSignalTitles[index],
-                sourceView = apiSignalSources[index],
-                valueView = apiSignalValues[index],
-                hintView = apiSignalHints[index],
                 item = signals[index]
             )
         }
     }
 
+    private fun renderExtraSections(sections: List<DetailSection>) {
+        containerExtraSections.removeAllViews()
+
+        for (section in sections) {
+            val itemView = layoutInflater.inflate(
+                R.layout.common_item_detail_section,
+                containerExtraSections,
+                false
+            )
+
+            val titleView = itemView.findViewById<TextView>(R.id.textDetailTitle)
+            val bodyView = itemView.findViewById<TextView>(R.id.textDetailBody)
+
+            titleView.text = section.title
+            bodyView.text = section.body
+            applyValueTextColor(titleView, section.state)
+
+            containerExtraSections.addView(itemView)
+        }
+    }
+
     private fun bindSignalCard(
         card: LinearLayout,
-        titleView: TextView,
-        sourceView: TextView,
-        valueView: TextView,
-        hintView: TextView,
         item: SignalItem
     ) {
+        val titleView = card.findViewById<TextView>(R.id.textSignalTitle)
+        val sourceView = card.findViewById<TextView>(R.id.textSignalSource)
+        val valueView = card.findViewById<TextView>(R.id.textSignalValue)
+        val hintView = card.findViewById<TextView>(R.id.textSignalHint)
+
         titleView.text = item.title
         sourceView.text = item.source
         valueView.text = item.value
