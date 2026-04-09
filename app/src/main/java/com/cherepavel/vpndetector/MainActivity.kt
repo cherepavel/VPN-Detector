@@ -186,7 +186,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun runDetection(): DetectionOutput {
         val snapshot = detectionEngine.detect()
-        val report = ReportFormatter.build(snapshot)
+        val report = ReportFormatter.build(this, snapshot)
 
         val exportText = ReportExportFormatter.buildText(
             ReportExportFormatter.ExportInput(
