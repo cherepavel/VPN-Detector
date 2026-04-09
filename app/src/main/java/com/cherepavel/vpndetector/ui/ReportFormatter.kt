@@ -494,24 +494,57 @@ object ReportFormatter {
                 "No suspicious DNS range or NOT_VPN capability anomaly was exposed here."
         }
 
-        val interfaceValue = listOfNotNull(
-            rawInterfaceName,
-            transportInfoSummary?.let { "transport: $it" }
-        ).ifEmpty { listOf("none") }.joinToString("\n")
+        val interfaceLines = buildList {
+            rawInterfaceName?.let { add(softWrapToken(it)) }
 
-        val dnsValue = buildList {
+            formatTransportInfo(transportInfoSummary)?.let { transport ->
+                add(
+                    when {
+                        transport.contains("VPN", ignoreCase = true) -> "VPN transport"
+                        else -> transport
+                    }
+                )
+            }
+        }
+
+        val interfaceValue = interfaceLines
+            .distinct()
+            .take(2)
+            .ifEmpty { listOf("none") }
+            .joinToString("\n")
+
+        val dnsLines = buildList {
             when {
                 internalDnsServers.isNotEmpty() ->
-                    add(internalDnsServers.map(::stripIfacePrefix).joinToString("\n"))
-                contextualInternalDnsServers.isNotEmpty() ->
-                    add(contextualInternalDnsServers.map(::stripIfacePrefix).joinToString("\n") + "\n(cellular)")
+                    addAll(formatDnsList(internalDnsServers))
+
+                contextualInternalDnsServers.isNotEmpty() -> {
+                    addAll(formatDnsList(contextualInternalDnsServers))
+                    add("cellular context")
+                }
+
                 allDnsServers.isNotEmpty() ->
-                    add(allDnsServers.map(::stripIfacePrefix).joinToString("\n"))
+                    addAll(formatDnsList(allDnsServers))
             }
-            if (activeNetworkNotVpn == false) add("NOT_VPN cleared (active)")
-            if (preferredNetworkNotVpn == false) add("NOT_VPN cleared (preferred)")
-            if (privateDnsActive) add("DoH: ${privateDnsServerName ?: "on"}")
-        }.ifEmpty { listOf("none") }.joinToString("\n")
+
+            if (activeNetworkNotVpn == false) {
+                add("NOT_VPN cleared")
+                add("(active)")
+            }
+
+            if (preferredNetworkNotVpn == false) {
+                add("NOT_VPN cleared")
+                add("(preferred)")
+            }
+
+            if (privateDnsActive) {
+                add("Private DNS: ${privateDnsServerName ?: "on"}")
+            }
+        }
+
+        val dnsValue = dnsLines
+            .ifEmpty { listOf("none") }
+            .joinToString("\n")
 
         return listOf(
             SignalItem(
@@ -543,6 +576,41 @@ object ReportFormatter {
 
     private fun stripIfacePrefix(s: String): String =
         if (':' in s) s.substringAfter(':') else s
+
+    private fun formatTransportInfo(summary: String?): String? {
+        if (summary.isNullOrBlank()) return null
+
+        return summary
+            .replace("VpnTransportInfo", "VPN")
+            .replace("type=", "")
+            .replace("PLATFORM", "platform")
+            .replace("(", " (")
+            .let(::softWrapToken)
+            .trim()
+    }
+
+    private fun formatDnsList(values: List<String>): List<String> {
+        return values
+            .map(::stripIfacePrefix)
+            .map(::softWrapIp)
+            .distinct()
+    }
+
+    private fun softWrapIp(value: String): String {
+        return value
+            .replace(":", ":\u200B")
+            .replace(".", ".\u200B")
+    }
+
+    private fun softWrapToken(value: String): String {
+        return value
+            .replace("(", "(\u200B")
+            .replace(")", "\u200B)")
+            .replace("/", "/\u200B")
+            .replace("-", "-\u200B")
+            .replace("_", "_\u200B")
+            .replace(",", ",\u200B")
+    }
 
     private fun DetectionConfidence.label(): String {
         return when (this) {
