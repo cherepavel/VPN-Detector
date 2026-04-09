@@ -31,5 +31,7 @@
 
         <include layout="@layout/main_section_apps" />
 
+        <include layout="@layout/main_section_footer" />
+
     </LinearLayout>
 </ScrollView>

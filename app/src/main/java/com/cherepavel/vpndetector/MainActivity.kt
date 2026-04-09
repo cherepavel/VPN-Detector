@@ -23,10 +23,11 @@ import com.cherepavel.vpndetector.detector.DetectionEngine
 import com.cherepavel.vpndetector.detector.IDetectionEngine
 import com.cherepavel.vpndetector.ui.DetailSection
 import com.cherepavel.vpndetector.ui.DetectionReport
-import com.cherepavel.vpndetector.ui.ReportExportFormatter
 import com.cherepavel.vpndetector.ui.ReportFormatter
 import com.cherepavel.vpndetector.ui.SignalItem
 import com.cherepavel.vpndetector.ui.SignalState
+import com.cherepavel.vpndetector.ui.export.ReportExportBuilder
+import com.cherepavel.vpndetector.ui.export.ReportExportFormatter
 import com.cherepavel.vpndetector.util.nowString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +44,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonRefresh: Button
     private lateinit var buttonReport: Button
     private lateinit var textLastUpdate: TextView
+    private lateinit var textVersion: TextView
+    private lateinit var textFooterInfo: TextView
 
     private lateinit var cardTransportVpn: LinearLayout
     private lateinit var textTransportState: TextView
@@ -100,6 +103,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         bindViews()
+        renderVersion()
+        renderFooter()
         setupListeners()
         refreshUi()
     }
@@ -117,6 +122,8 @@ class MainActivity : AppCompatActivity() {
         buttonRefresh = findViewById(R.id.buttonRefresh)
         buttonReport = findViewById(R.id.buttonReport)
         textLastUpdate = findViewById(R.id.textLastUpdate)
+        textVersion = findViewById(R.id.textVersion)
+        textFooterInfo = findViewById(R.id.textFooterInfo)
 
         cardTransportVpn = findViewById(R.id.cardTransportVpn)
         textTransportState = findViewById(R.id.textTransportState)
@@ -146,6 +153,15 @@ class MainActivity : AppCompatActivity() {
 
         buttonReport.setOnClickListener {
             showReportActions()
+        }
+
+        textFooterInfo.setOnClickListener {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(getString(R.string.repo_url))
+                )
+            )
         }
 
         scrollNativeDetails.setOnTouchListener { view, event ->
@@ -188,12 +204,8 @@ class MainActivity : AppCompatActivity() {
         val snapshot = detectionEngine.detect()
         val report = ReportFormatter.build(this, snapshot)
 
-        val exportText = ReportExportFormatter.buildText(
-            ReportExportFormatter.ExportInput(
-                report = report,
-                snapshot = snapshot
-            )
-        )
+        val exportReport = ReportExportBuilder.build(snapshot)
+        val exportText = ReportExportFormatter.buildText(exportReport)
 
         return DetectionOutput(
             report = report,
@@ -301,6 +313,19 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     private fun renderLastUpdate() {
         textLastUpdate.text = "Last update: ${nowString()}"
+    }
+
+    private fun renderVersion() {
+        textVersion.text =
+            "${BuildConfig.VERSION_NAME} • ${BuildConfig.GIT_HASH} • ${BuildConfig.BUILD_TYPE}"
+    }
+
+    private fun renderFooter() {
+        val repoText = getString(R.string.repo_url)
+            .removePrefix("https://")
+            .removePrefix("http://")
+
+        textFooterInfo.text = "${getString(R.string.source_code_label)} $repoText"
     }
 
     private fun showReportActions() {

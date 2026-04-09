@@ -7,34 +7,6 @@ import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.model.DetectionStatus
 
-data class DetailSection(
-    val title: String,
-    val body: String,
-    val state: SignalState = SignalState.NEUTRAL
-)
-
-data class DetectionReport(
-    val overallTitle: String,
-    val overallSummary: String,
-    val overallExplanation: String,
-    val overallState: SignalState,
-
-    val transportCardState: SignalState,
-    val transportStateText: String,
-    val transportSubtitle: String,
-    val transportAnyValue: String,
-    val transportActiveValue: String,
-    val transportAnyDetected: Boolean,
-    val transportActiveDetected: Boolean,
-
-    val apiSignals: List<SignalItem>,
-    val nativeSignal: SignalItem,
-    val nativeDetails: String,
-    val extraSections: List<DetailSection>,
-    val javaSignal: SignalItem,
-    val knownAppsText: String
-)
-
 object ReportFormatter {
 
     fun build(context: Context, snapshot: DetectionSnapshot): DetectionReport {
@@ -402,7 +374,7 @@ object ReportFormatter {
             snapshot.assessment.status == DetectionStatus.ACTIVE_VPN || activeVpn -> {
                 val lockdown = snapshot.lockdownLikely
                 val summary = context.getString(R.string.report_summary_vpn_detected) +
-                        if (lockdown) context.getString(R.string.report_summary_lockdown_suffix) else ""
+                        if (lockdown) " " + context.getString(R.string.report_summary_lockdown_suffix) else ""
 
                 OverallBlock(
                     title = context.getString(

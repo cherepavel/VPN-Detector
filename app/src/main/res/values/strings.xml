@@ -108,4 +108,8 @@
     <string name="managed_profile_body">Running inside a managed profile.</string>
     <string name="work_profile_count_body">%1$d user profiles detected. VPN apps in other profiles are not visible to this detector.</string>
 
+    <string name="author">cherepavel</string>
+    <string name="repo_url">https://github.com/cherepavel/VPN-Detector</string>
+    <string name="source_code_label">Source code:</string>
+
 </resources>
