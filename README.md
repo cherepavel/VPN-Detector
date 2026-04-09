@@ -9,7 +9,13 @@ Research tool for analyzing VPN detection mechanisms on Android.
 - Native + Java network enumeration
 
 ## Purpose
+
 Demonstrates how apps can detect VPN presence even with split tunneling.
+
+## Permissions
+
+* `android.permission.ACCESS_NETWORK_STATE` — used to access network state via `ConnectivityManager`
+* `android.permission.QUERY_ALL_PACKAGES` — used to enumerate installed applications in order to detect known VPN clients
 
 ## Screenshots
 
@@ -20,3 +26,7 @@ Demonstrates how apps can detect VPN presence even with split tunneling.
 **_VPN Split / Bypass (still detectable)_**
 
 ![](img/vpn_split_bypass.jpg)
+
+## License
+
+MIT
