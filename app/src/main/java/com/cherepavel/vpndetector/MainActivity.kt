@@ -3,10 +3,6 @@ package com.cherepavel.vpndetector
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.ConnectivityManager
-import android.net.LinkProperties
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Bundle
 import android.view.MotionEvent
@@ -25,7 +21,6 @@ import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cherepavel.vpndetector.detector.DetectionEngine
 import com.cherepavel.vpndetector.detector.IDetectionEngine
-import com.cherepavel.vpndetector.detector.TrackedAppsRepository
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
@@ -35,7 +30,6 @@ import com.cherepavel.vpndetector.ui.SignalState
 import com.cherepavel.vpndetector.util.nowString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
@@ -96,24 +90,6 @@ class MainActivity : AppCompatActivity() {
 
     private var lastExportText: String = ""
     private var detectionJob: Job? = null
-    private var scheduledRefreshJob: Job? = null
-    private var networkCallbackRegistered = false
-
-    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) = scheduleRefresh()
-
-        override fun onLost(network: Network) = scheduleRefresh()
-
-        override fun onCapabilitiesChanged(
-            network: Network,
-            networkCapabilities: NetworkCapabilities
-        ) = scheduleRefresh()
-
-        override fun onLinkPropertiesChanged(
-            network: Network,
-            linkProperties: LinkProperties
-        ) = scheduleRefresh()
-    }
 
     private val createDocumentLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
@@ -140,15 +116,11 @@ class MainActivity : AppCompatActivity() {
 
         bindViews()
         setupListeners()
-        registerNetworkCallback()
-        lifecycleScope.launch(Dispatchers.IO) { TrackedAppsRepository.refresh(applicationContext) }
         refreshUi()
     }
 
     override fun onDestroy() {
-        unregisterNetworkCallback()
         detectionJob?.cancel()
-        scheduledRefreshJob?.cancel()
         super.onDestroy()
     }
 
@@ -243,32 +215,6 @@ class MainActivity : AppCompatActivity() {
             buttonRefresh.isEnabled = true
             buttonReport.isEnabled = true
         }
-    }
-
-    private fun scheduleRefresh() {
-        scheduledRefreshJob?.cancel()
-        scheduledRefreshJob = lifecycleScope.launch {
-            delay(250)
-            refreshUi()
-        }
-    }
-
-    private fun registerNetworkCallback() {
-        if (networkCallbackRegistered) return
-        val request = NetworkRequest.Builder().build()
-        runCatching {
-            connectivityManager.registerNetworkCallback(request, networkCallback)
-        }.onSuccess {
-            networkCallbackRegistered = true
-        }
-    }
-
-    private fun unregisterNetworkCallback() {
-        if (!networkCallbackRegistered) return
-        runCatching {
-            connectivityManager.unregisterNetworkCallback(networkCallback)
-        }
-        networkCallbackRegistered = false
     }
 
     private fun runDetection(): DetectionOutput {
