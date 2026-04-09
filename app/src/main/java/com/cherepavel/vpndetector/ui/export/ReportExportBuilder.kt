@@ -1,5 +1,8 @@
 package com.cherepavel.vpndetector.ui.export
 
+import android.content.Context
+import com.cherepavel.vpndetector.BuildConfig
+import com.cherepavel.vpndetector.R
 import com.cherepavel.vpndetector.detector.TunnelNameMatcher
 import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionSnapshot
@@ -8,7 +11,10 @@ import com.cherepavel.vpndetector.util.nowString
 
 object ReportExportBuilder {
 
-    fun build(snapshot: DetectionSnapshot): ExportReport {
+    fun build(
+        context: Context,
+        snapshot: DetectionSnapshot
+    ): ExportReport {
         val sections = buildList {
             add(
                 ExportSection(
@@ -35,8 +41,14 @@ object ReportExportBuilder {
         return ExportReport(
             title = "VPN Detector Report",
             generatedAt = nowString(),
+            buildInfo = buildBuildInfo(),
+            sourceCodeUrl = context.getString(R.string.repo_url),
             sections = sections
         )
+    }
+
+    private fun buildBuildInfo(): String {
+        return "${BuildConfig.VERSION_NAME} • ${BuildConfig.GIT_HASH} • ${BuildConfig.BUILD_TYPE}"
     }
 
     private fun buildOverallItems(snapshot: DetectionSnapshot): List<ExportItem> {
@@ -102,27 +114,12 @@ object ReportExportBuilder {
 
             add(ExportItem.Paragraph("API signals:"))
             add(ExportItem.Paragraph("- Interface name"))
-            add(
-                ExportItem.Field(
-                    "source",
-                    "LinkProperties.getInterfaceName()"
-                )
-            )
-            add(
-                ExportItem.Field(
-                    "value",
-                    snapshot.rawInterfaceName ?: "none"
-                )
-            )
+            add(ExportItem.Field("source", "LinkProperties.getInterfaceName()"))
+            add(ExportItem.Field("value", snapshot.rawInterfaceName ?: "none"))
             add(ExportItem.Field("hint", interfaceHint))
 
             add(ExportItem.Paragraph("- Transport info"))
-            add(
-                ExportItem.Field(
-                    "source",
-                    "NetworkCapabilities.getTransportInfo()"
-                )
-            )
+            add(ExportItem.Field("source", "NetworkCapabilities.getTransportInfo()"))
             add(
                 ExportItem.Field(
                     "value",
@@ -138,12 +135,7 @@ object ReportExportBuilder {
     private fun buildVpnNetworkDetailsSection(snapshot: DetectionSnapshot): ExportSection? {
         val items = buildList {
             if (snapshot.vpnRoutes.isNotEmpty()) {
-                add(
-                    ExportItem.ListBlock(
-                        label = "Routes",
-                        values = snapshot.vpnRoutes
-                    )
-                )
+                add(ExportItem.ListBlock("Routes", snapshot.vpnRoutes))
             }
 
             if (snapshot.vpnDnsServers.isNotEmpty()) {

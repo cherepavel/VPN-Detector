@@ -3,6 +3,8 @@ package com.cherepavel.vpndetector.ui.export
 data class ExportReport(
     val title: String,
     val generatedAt: String,
+    val buildInfo: String,
+    val sourceCodeUrl: String,
     val sections: List<ExportSection>
 )
 

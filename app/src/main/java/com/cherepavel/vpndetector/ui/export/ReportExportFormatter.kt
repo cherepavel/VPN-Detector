@@ -6,6 +6,8 @@ object ReportExportFormatter {
         return buildString {
             appendLine(report.title)
             appendLine("Generated: ${report.generatedAt}")
+            appendLine("Build: ${report.buildInfo}")
+            appendLine("Source code: ${report.sourceCodeUrl}")
             appendLine()
 
             report.sections.forEachIndexed { index, section ->
