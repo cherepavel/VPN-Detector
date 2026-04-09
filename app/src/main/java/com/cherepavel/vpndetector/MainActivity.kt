@@ -21,7 +21,6 @@ import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cherepavel.vpndetector.detector.DetectionEngine
 import com.cherepavel.vpndetector.detector.IDetectionEngine
-import com.cherepavel.vpndetector.detector.TrackedAppsRepository
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.ui.DetectionReport
 import com.cherepavel.vpndetector.ui.ReportExportFormatter
@@ -117,7 +116,6 @@ class MainActivity : AppCompatActivity() {
 
         bindViews()
         setupListeners()
-        lifecycleScope.launch(Dispatchers.IO) { TrackedAppsRepository.refresh(applicationContext) }
         refreshUi()
     }
 
