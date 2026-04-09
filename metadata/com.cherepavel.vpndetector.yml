@@ -9,20 +9,32 @@ AutoName: VPN Detector
 Summary: Detects active VPN connections and interfaces on Android
 
 Description: |
-  VPN Detector — приложение для обнаружения VPN-соединений.
-  Показывает:
-  - Активные VPN-интерфейсы (tun0, utun и т.д.)
-  - Маршруты ядра
-  - DNS-сервера
-  - Приложения, использующие VPN
-  - И многое другое
+  VPN Detector is a research and diagnostic tool for analyzing VPN detection
+  mechanisms on Android. No root required, no ads, no tracking.
 
-  Работает без root и без реклам.
+  It shows:
+  * Active VPN interfaces (tun0, wg0, utun, etc.)
+  * Kernel routing table
+  * DNS servers in use
+  * Apps currently using VPN
+  * NetworkCapabilities.TRANSPORT_VPN state
+  * Always-on VPN and Work Profile detection
+  * Local proxy and known VPN DNS detection
 
-CurrentVersion: 1.0
-CurrentVersionCode: 1
+  Useful for privacy researchers, developers, and power users who want to
+  understand how applications can detect VPN presence even with split tunneling.
 
-AutoUpdateMode: Version
+  VPN Detector — диагностический инструмент для анализа механизмов обнаружения
+  VPN на Android. Без root, без рекламы, без слежки.
+
+Builds:
+  - versionName: '1.0'
+    versionCode: 1
+    commit: v1.0
+    subdir: app
+    gradle:
+      - yes
+    ndk: 27.2.12479018
+
+AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-VercodeOperation: "%c"
-UpdateCheckData: ".*v([0-9.]+).*|.*-([0-9]+)\.apk"

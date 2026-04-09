@@ -1,30 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <queries>
-        <intent>
-            <action android:name="android.net.VpnService" />
-        </intent>
-        <package android:name="com.github.dyhkwong.sagernet" />
-        <package android:name="com.v2ray.ang" />
-        <package android:name="org.amnezia.awg" />
-        <package android:name="org.amnezia.vpn" />
-        <package android:name="de.blinkt.openvpn" />
-        <package android:name="net.openvpn.openvpn" />
-        <package android:name="com.zaneschepke.wireguardautotunnel" />
-        <package android:name="moe.nb4a" />
-        <package android:name="com.protonvpn.android" />
-        <package android:name="ch.protonvpn.android" />
-        <package android:name="com.outline.android" />
-        <package android:name="xyz.safetyvpn.app" />
-        <package android:name="net.mullvad.mullvadvpn" />
-        <package android:name="org.torproject.android" />
-    </queries>
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:allowBackup="true"

@@ -160,10 +160,6 @@ object ReportFormatter {
                 append("\n\n--- Kernel route table (/proc/net/ipv6_route) ---\n")
                 append(snapshot.kernelIpv6Routes.joinToString("\n"))
             }
-            if (snapshot.proxyInfo != null) {
-                append("\n\n--- Proxy detection ---\n")
-                append(snapshot.proxyInfo)
-            }
             if (snapshot.vpnPermissionGranted) {
                 append("\n\n--- VPN permission ---\n")
                 append("This app holds Android VPN permission (anomalous for a detector).")
@@ -175,10 +171,6 @@ object ReportFormatter {
             if (snapshot.knownVpnDnsMatches.isNotEmpty()) {
                 append("\n\n--- Known VPN provider DNS ---\n")
                 append(snapshot.knownVpnDnsMatches.joinToString("\n"))
-            }
-            if (snapshot.localProxies.isNotEmpty()) {
-                append("\n\n--- Local proxy ports (no VpnService) ---\n")
-                append(snapshot.localProxies.joinToString("\n"))
             }
             if (snapshot.workProfileCount > 1 || snapshot.isManagedProfile) {
                 append("\n\n--- Work / managed profile ---\n")

@@ -16,8 +16,6 @@ class DetectionEngine(
     private val javaInterfacesDetector: JavaInterfacesDetector = JavaInterfacesDetector(),
     private val trackedAppsDetector: TrackedAppsDetector = TrackedAppsDetector(context),
     private val dynamicVpnAppsDetector: DynamicVpnAppsDetector = DynamicVpnAppsDetector(context),
-    private val proxyDetector: ProxyDetector = ProxyDetector(context),
-    private val localProxyDetector: LocalProxyDetector = LocalProxyDetector()
 ) : IDetectionEngine {
 
     companion object {
@@ -90,10 +88,8 @@ class DetectionEngine(
             if (mtu != null && mtu < 1500 && type != 772 && name != "lo") "$name: mtu $mtu" else null
         }
 
-        val proxyInfo = proxyDetector.detect().summary()
         val alwaysOnResult = AlwaysOnVpnDetector.detect(connectivityManager)
         val knownVpnDnsMatches = KnownVpnDnsDetector.detect(dnsSummary.allServers)
-        val localProxies = localProxyDetector.detect()
         val workProfileResult = WorkProfileDetector.detect(context)
         val vpnPermissionGranted = VpnPermissionDetector.isThisAppVpnOwner(context)
         val vpnBandwidthSummary = vpnCaps?.let { caps ->
@@ -121,10 +117,8 @@ class DetectionEngine(
                 preferredNetworkNotVpn = policySummary.preferredNetworkNotVpn,
                 tunTypeInterfaces = tunTypeInterfaces,
                 lowMtuInterfaces = lowMtuInterfaces,
-                proxyInfo = proxyInfo,
                 lockdownLikely = alwaysOnResult.lockdownLikely,
-                knownVpnDnsMatches = knownVpnDnsMatches,
-                localProxies = localProxies
+                knownVpnDnsMatches = knownVpnDnsMatches
             )
         )
 
@@ -151,7 +145,6 @@ class DetectionEngine(
             kernelIpv6Routes = kernelIpv6RoutesResult.routes,
             tunTypeInterfaces = tunTypeInterfaces,
             lowMtuInterfaces = lowMtuInterfaces,
-            proxyInfo = proxyInfo,
             vpnPermissionGranted = vpnPermissionGranted,
             vpnBandwidthSummary = vpnBandwidthSummary,
             nativeError = listOfNotNull(
@@ -162,7 +155,6 @@ class DetectionEngine(
             trackedAppsErrors = trackedResult.errors,
             lockdownLikely = alwaysOnResult.lockdownLikely,
             knownVpnDnsMatches = knownVpnDnsMatches,
-            localProxies = localProxies,
             workProfileCount = workProfileResult.profileCount,
             isManagedProfile = workProfileResult.isManagedProfile,
             assessment = assessment

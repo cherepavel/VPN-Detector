@@ -84,13 +84,6 @@ object DetectionScorer {
                 summary = "A low-MTU interface was observed."
             ),
             DetectionEvidence(
-                key = "vpn_related_proxy",
-                category = DetectionCategory.CONTEXT,
-                weight = 5,
-                present = signals.proxyInfo != null,
-                summary = "Proxy-related configuration was observed."
-            ),
-            DetectionEvidence(
                 key = "installed_vpn_apps",
                 category = DetectionCategory.APP,
                 weight = 10,
@@ -118,13 +111,6 @@ object DetectionScorer {
                 present = signals.knownVpnDnsMatches.isNotEmpty(),
                 summary = "DNS servers matching known VPN provider addresses were observed."
             ),
-            DetectionEvidence(
-                key = "local_proxy_detected",
-                category = DetectionCategory.CONTEXT,
-                weight = 15,
-                present = signals.localProxies.isNotEmpty(),
-                summary = "A local proxy port is open — traffic may be tunnelled without VpnService."
-            )
         )
 
         val score = evidence.filter { it.present }.sumOf { it.weight }.coerceAtMost(100)

@@ -37,7 +37,6 @@ struct InterfaceDump {
     std::vector<AddressEntry> addresses;
 };
 
-// RAII для getifaddrs (без опасного operator&)
 struct IfAddrsGuard {
     ::ifaddrs *ptr = nullptr;
 
@@ -53,7 +52,7 @@ struct IfAddrsGuard {
     explicit operator ::ifaddrs *() const noexcept { return ptr; }
 };
 
-static std::string sockaddrToString(const sockaddr *sa) {
+std::string sockaddrToString(const sockaddr *sa) {
     if (!sa)
         return {};
 
@@ -70,7 +69,7 @@ static std::string sockaddrToString(const sockaddr *sa) {
     return {};
 }
 
-static int readIntFromFile(const std::string &path, const int fallback = -1) {
+int readIntFromFile(const std::string &path, const int fallback = -1) {
     std::ifstream file(path);
     if (!file.is_open())
         return fallback;
@@ -80,7 +79,7 @@ static int readIntFromFile(const std::string &path, const int fallback = -1) {
     return file.fail() ? fallback : value;
 }
 
-static std::string formatFlagNames(const unsigned int flags) {
+std::string formatFlagNames(const unsigned int flags) {
     std::string result;
     const auto append = [&](const char *name) {
         if (!result.empty())
@@ -112,7 +111,7 @@ static std::string formatFlagNames(const unsigned int flags) {
     return result;
 }
 
-static int ipv6PrefixLenFromMask(const sockaddr *sa) {
+int ipv6PrefixLenFromMask(const sockaddr *sa) {
     if (!sa || sa->sa_family != AF_INET6)
         return -1;
 
@@ -135,13 +134,13 @@ static int ipv6PrefixLenFromMask(const sockaddr *sa) {
     return bits;
 }
 
-static bool addressEntryLess(const AddressEntry &a, const AddressEntry &b) {
+bool addressEntryLess(const AddressEntry &a, const AddressEntry &b) {
     if (a.family != b.family)
         return a.family == AF_INET;
     return a.address < b.address;
 }
 
-static const char *ifTypeName(const int type) {
+const char *ifTypeName(const int type) {
     switch (type) {
     case 1:
         return "ETHER";
@@ -154,9 +153,9 @@ static const char *ifTypeName(const int type) {
     }
 }
 
-static std::string buildIfconfigLikeBlock(const InterfaceDump &iface, const std::map<std::string, int> &mtuMap,
-                                          const std::map<std::string, int> &txQueueMap,
-                                          const std::map<std::string, int> &typeMap) {
+std::string buildIfconfigLikeBlock(const InterfaceDump &iface, const std::map<std::string, int> &mtuMap,
+                                   const std::map<std::string, int> &txQueueMap,
+                                   const std::map<std::string, int> &typeMap) {
     std::ostringstream oss;
 
     oss << iface.name << ": flags=" << iface.flags << "<" << formatFlagNames(iface.flags) << ">";
@@ -203,7 +202,7 @@ static std::string buildIfconfigLikeBlock(const InterfaceDump &iface, const std:
     return oss.str();
 }
 
-static jobjectArray createStringArray(JNIEnv *env, const std::vector<std::string> &strings) {
+jobjectArray createStringArray(JNIEnv *env, const std::vector<std::string> &strings) {
     jclass stringCls = env->FindClass("java/lang/String");
     if (!stringCls)
         return nullptr;
@@ -223,13 +222,13 @@ static jobjectArray createStringArray(JNIEnv *env, const std::vector<std::string
 }
 
 // --- /proc/net/route helpers ---
-static std::string hexLeToIpStr(const std::string &hex) {
+std::string hexLeToIpStr(const std::string &hex) {
     const auto val = strtoul(hex.c_str(), nullptr, 16);
     return std::to_string(val & 0xFFu) + "." + std::to_string((val >> 8u) & 0xFFu) + "." +
            std::to_string((val >> 16u) & 0xFFu) + "." + std::to_string((val >> 24u) & 0xFFu);
 }
 
-static int countSetBits(unsigned long val) {
+int countSetBits(unsigned long val) {
     int count = 0;
     while (val) {
         count += static_cast<int>(val & 1u);
@@ -238,7 +237,7 @@ static int countSetBits(unsigned long val) {
     return count;
 }
 
-static std::string hexToIpv6Str(const std::string &hex) {
+std::string hexToIpv6Str(const std::string &hex) {
     if (hex.size() != 32)
         return {};
 
@@ -256,16 +255,16 @@ static std::string hexToIpv6Str(const std::string &hex) {
     return inet_ntop(AF_INET6, bytes.data(), buf, sizeof(buf)) ? std::string(buf) : std::string();
 }
 
-static std::vector<std::string> collectInterfaceDumps() {
+std::vector<std::string> collectInterfaceDumps() {
     std::map<std::string, InterfaceDump> interfaces;
     std::map<std::string, int> mtuMap, txQueueMap, typeMap;
 
-    IfAddrsGuard ifaddr;
-    if (getifaddrs(ifaddr()) == -1 || ifaddr.get() == nullptr) {
+    IfAddrsGuard ipaddr;
+    if (getifaddrs(ipaddr()) == -1 || ipaddr.get() == nullptr) {
         return {};
     }
 
-    for (const ::ifaddrs *it = ifaddr.get(); it != nullptr; it = it->ifa_next) {
+    for (const ::ifaddrs *it = ipaddr.get(); it != nullptr; it = it->ifa_next) {
         if (!it->ifa_name)
             continue;
 
@@ -305,9 +304,8 @@ static std::vector<std::string> collectInterfaceDumps() {
                 peerStr = sockaddrToString(it->ifa_dstaddr);
         }
 
-        const std::string addrStr = sockaddrToString(it->ifa_addr);
-        iface.addresses.emplace_back(family, std::move(addrStr), std::move(netmaskStr), std::move(peerStr), isP2P,
-                                     isBC);
+        const std::string adderStr = sockaddrToString(it->ifa_addr);
+        iface.addresses.emplace_back(family, adderStr, std::move(netmaskStr), std::move(peerStr), isP2P, isBC);
     }
 
     std::vector<std::string> dumps;
@@ -318,7 +316,7 @@ static std::vector<std::string> collectInterfaceDumps() {
     return dumps;
 }
 
-static std::vector<std::string> parseKernelRoutes() {
+std::vector<std::string> parseKernelRoutes() {
     std::ifstream routeFile("/proc/net/route");
     if (!routeFile.is_open())
         return {};
@@ -329,9 +327,9 @@ static std::vector<std::string> parseKernelRoutes() {
 
     while (std::getline(routeFile, line)) {
         std::istringstream ss(line);
-        std::string iface, dest, gw, flagsStr, refCnt, use, metric, mask;
+        std::string i_face, dest, gw, flagsStr, refCnt, use, metric, mask;
 
-        if (!(ss >> iface >> dest >> gw >> flagsStr >> refCnt >> use >> metric >> mask))
+        if (!(ss >> i_face >> dest >> gw >> flagsStr >> refCnt >> use >> metric >> mask))
             continue;
 
         const auto flags = strtoul(flagsStr.c_str(), nullptr, 16);
@@ -342,7 +340,7 @@ static std::vector<std::string> parseKernelRoutes() {
         const auto destVal = strtoul(dest.c_str(), nullptr, 16);
 
         std::ostringstream route;
-        route << iface << ": " << hexLeToIpStr(dest) << "/" << countSetBits(maskVal);
+        route << i_face << ": " << hexLeToIpStr(dest) << "/" << countSetBits(maskVal);
         if (flags & 0x0002u)
             route << " via " << hexLeToIpStr(gw);
         if (destVal == 0 && maskVal == 0)
@@ -353,7 +351,7 @@ static std::vector<std::string> parseKernelRoutes() {
     return routes;
 }
 
-static std::vector<std::string> parseKernelIpv6Routes() {
+std::vector<std::string> parseKernelIpv6Routes() {
     std::ifstream routeFile("/proc/net/ipv6_route");
     if (!routeFile.is_open())
         return {};

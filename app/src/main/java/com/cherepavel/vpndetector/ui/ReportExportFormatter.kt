@@ -92,7 +92,7 @@ object ReportExportFormatter {
 
             if (snapshot.tunTypeInterfaces.isNotEmpty() || snapshot.lowMtuInterfaces.isNotEmpty() ||
                 snapshot.kernelRoutes.isNotEmpty() || snapshot.kernelIpv6Routes.isNotEmpty() ||
-                snapshot.proxyInfo != null || snapshot.vpnPermissionGranted) {
+                snapshot.vpnPermissionGranted) {
                 appendLine("=== ADDITIONAL SIGNALS ===")
                 if (snapshot.tunTypeInterfaces.isNotEmpty()) {
                     appendLine("TUN interfaces (type=65534): ${snapshot.tunTypeInterfaces.joinToString(", ")}")
@@ -108,10 +108,6 @@ object ReportExportFormatter {
                 if (snapshot.kernelIpv6Routes.isNotEmpty()) {
                     appendLine("Kernel route table (/proc/net/ipv6_route):")
                     snapshot.kernelIpv6Routes.forEach { appendLine("  $it") }
-                }
-                snapshot.proxyInfo?.let {
-                    appendLine("Proxy detected:")
-                    it.lines().forEach { line -> appendLine("  $line") }
                 }
                 if (snapshot.vpnPermissionGranted) {
                     appendLine("VPN permission: this app holds VPN grant (anomalous).")
@@ -156,8 +152,7 @@ object ReportExportFormatter {
             }
 
             if (snapshot.lockdownLikely || snapshot.knownVpnDnsMatches.isNotEmpty() ||
-                snapshot.localProxies.isNotEmpty() || snapshot.workProfileCount > 1 ||
-                snapshot.isManagedProfile) {
+                snapshot.workProfileCount > 1 || snapshot.isManagedProfile) {
                 appendLine()
                 appendLine("=== ADVANCED SIGNALS ===")
                 if (snapshot.lockdownLikely) {
@@ -166,10 +161,6 @@ object ReportExportFormatter {
                 if (snapshot.knownVpnDnsMatches.isNotEmpty()) {
                     appendLine("Known VPN provider DNS:")
                     snapshot.knownVpnDnsMatches.forEach { appendLine("- $it") }
-                }
-                if (snapshot.localProxies.isNotEmpty()) {
-                    appendLine("Local proxy ports (no VpnService):")
-                    snapshot.localProxies.forEach { appendLine("- $it") }
                 }
                 if (snapshot.workProfileCount > 1) {
                     appendLine("Work profile: ${snapshot.workProfileCount} user profiles detected. VPN apps in other profiles are not visible.")

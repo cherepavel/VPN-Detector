@@ -1,11 +1,11 @@
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
 }
 
-android {
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
     namespace = "com.cherepavel.vpndetector.detector"
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         minSdk = 24
@@ -26,9 +26,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
 
-    kotlinOptions {
-        jvmTarget = "11"
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
     }
 }
 

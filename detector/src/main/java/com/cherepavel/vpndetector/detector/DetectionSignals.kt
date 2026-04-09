@@ -14,8 +14,6 @@ data class DetectionSignals(
     val preferredNetworkNotVpn: Boolean?,
     val tunTypeInterfaces: List<String>,
     val lowMtuInterfaces: List<String>,
-    val proxyInfo: String?,
     val lockdownLikely: Boolean,
-    val knownVpnDnsMatches: List<String>,
-    val localProxies: List<String>
+    val knownVpnDnsMatches: List<String>
 )
