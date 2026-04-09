@@ -2,6 +2,21 @@ plugins {
     id("com.android.application")
 }
 
+fun gitCommitHash(): String {
+    return try {
+        val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+            .redirectErrorStream(true)
+            .start()
+
+        val result = process.inputStream.bufferedReader().use { it.readText() }.trim()
+        val exitCode = process.waitFor()
+
+        if (exitCode == 0 && result.isNotBlank()) result else "unknown"
+    } catch (e: Exception) {
+        "unknown"
+    }
+}
+
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.cherepavel.vpndetector"
     compileSdk = 36
@@ -10,10 +25,12 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         applicationId = "com.cherepavel.vpndetector"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "0.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GIT_HASH", "\"${gitCommitHash()}\"")
     }
 
     buildTypes {
@@ -21,6 +38,10 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             isMinifyEnabled = false
             isShrinkResources = false
         }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {

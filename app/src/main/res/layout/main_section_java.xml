@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+        android:id="@+id/cardJavaSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_card_surface"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Java interface enumeration"
+            android:textColor="?attr/appColorOnSurface"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Supplementary signal from Java networking APIs"
+            android:textColor="?attr/appColorOnSurfaceMuted"
+            android:textSize="12sp" />
+
+        <include
+            android:id="@+id/cardJavaSignal"
+            layout="@layout/common_item_signal_card_full" />
+
+    </LinearLayout>
+
+</merge>

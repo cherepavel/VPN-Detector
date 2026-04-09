@@ -1,3 +1,115 @@
 <resources>
-    <string name="app_name">VpnDetector</string>
+    <string name="app_name" translatable="false">VPN Detector</string>
+
+    <string name="report_value_detected">DETECTED</string>
+    <string name="report_value_not_detected">NOT DETECTED</string>
+    <string name="report_value_none">none</string>
+    <string name="report_value_unknown">unknown</string>
+
+    <string name="report_title_vpn_detected">VPN detected</string>
+    <string name="report_title_vpn_detected_lockdown">VPN detected (lockdown)</string>
+    <string name="report_summary_vpn_detected">The active network is explicitly marked as VPN by Android.</string>
+    <string name="report_summary_lockdown_suffix"> Lockdown mode appears active — no non-VPN path is validated.</string>
+    <string name="report_explanation_vpn_detected">This is the strongest signal in the app: Android reports TRANSPORT_VPN on the network currently in use.</string>
+
+    <string name="report_title_split_tunnel">VPN present outside active path</string>
+    <string name="report_summary_split_tunnel">Android sees a VPN network in the system, but not on the current active network.</string>
+    <string name="report_explanation_split_tunnel">This often matches bypass or split-tunnel behavior: a VPN exists, but current traffic may not be fully routed through it.</string>
+
+    <string name="report_title_api_signal">VPN-related API signal</string>
+    <string name="report_summary_api_signal">Android APIs still expose VPN-like indicators even though active TRANSPORT_VPN is absent.</string>
+    <string name="report_explanation_api_signal">This is weaker than a direct VPN transport flag, but interface, DNS, or capability signals still suggest VPN-related state in the visible network stack.</string>
+
+    <string name="report_title_low_level">Low-level tunnel signal</string>
+    <string name="report_summary_low_level">No primary Android VPN signal was found, but tunnel-like interfaces were still discovered.</string>
+    <string name="report_explanation_low_level">This usually means only low-level interface heuristics fired. It is useful as an additional hint, but weaker than official Android VPN signals.</string>
+
+    <string name="report_title_apps_present">Detected VPN apps</string>
+    <string name="report_summary_apps_present">No active VPN network signal was found, but known VPN-related apps are installed on the device.</string>
+    <string name="report_explanation_apps_present">Installed VPN apps do not prove that a VPN is currently active, but they are still a relevant contextual signal.</string>
+
+    <string name="report_title_no_vpn">No VPN detected</string>
+    <string name="report_summary_no_vpn">The app did not find any high-level or low-level VPN indicators.</string>
+    <string name="report_explanation_no_vpn">Neither official Android network APIs nor interface enumeration produced a VPN-related signal.</string>
+
+    <string name="report_transport_text_vpn_detected">VPN DETECTED</string>
+    <string name="report_transport_text_split_tunnel">SPLIT / BYPASS</string>
+    <string name="report_transport_text_api_signal">API SIGNAL</string>
+    <string name="report_transport_text_not_detected">NOT DETECTED</string>
+
+    <string name="report_transport_subtitle_vpn_detected">TRANSPORT_VPN is present on the active network.</string>
+    <string name="report_transport_subtitle_split_tunnel">A VPN-related transport exists system-wide, but it is not the current active path.</string>
+    <string name="report_transport_subtitle_api_signal">No active TRANSPORT_VPN, but Android APIs still expose VPN-related information.</string>
+    <string name="report_transport_subtitle_not_detected">No VPN transport was reported by Android.</string>
+    <string name="report_transport_subtitle_not_on_active_path">Android did not report VPN transport on the active path.</string>
+
+    <string name="report_confidence_confirmed">confirmed</string>
+    <string name="report_confidence_likely">likely</string>
+    <string name="report_confidence_weak_signal">weak signal</string>
+    <string name="report_confidence_no_evidence">no evidence</string>
+    <string name="report_confidence_format">Confidence: %1$s (%2$d/100).</string>
+
+    <string name="signal_title_interface_name">Interface name</string>
+    <string name="signal_source_interface_name">LinkProperties.getInterfaceName()</string>
+    <string name="signal_title_transport_info">Transport info</string>
+    <string name="signal_source_transport_info">NetworkCapabilities.getTransportInfo()</string>
+
+    <string name="signal_hint_interface_active">The interface name itself looks like a tunnel device and matches the active VPN state.</string>
+    <string name="signal_hint_interface_any">The interface name looks tunnel-like and is consistent with a VPN being present somewhere in the system.</string>
+    <string name="signal_hint_interface_only">The interface name looks tunnel-like, but Android does not currently mark the active path as VPN.</string>
+    <string name="signal_hint_interface_normal">The interface name does not look like a typical VPN or tunnel interface.</string>
+    <string name="signal_hint_interface_missing">Android did not expose an interface name for this network.</string>
+
+    <string name="signal_hint_transport_active">Android returned transport info alongside an active VPN transport.</string>
+    <string name="signal_hint_transport_any">Transport info is present and aligns with a VPN existing somewhere in the network stack.</string>
+    <string name="signal_hint_transport_only">Transport info is present, but without a direct active VPN transport flag.</string>
+    <string name="signal_hint_transport_missing">No VPN-related transport info was exposed here.</string>
+
+    <string name="signal_title_tunnel_like_interfaces">Tunnel-like interfaces</string>
+    <string name="signal_source_native">Native getifaddrs() enumeration</string>
+    <string name="signal_source_java">Java NetworkInterface enumeration</string>
+    <string name="signal_hint_native_found">Native enumeration found interfaces whose names or properties look tunnel-like.</string>
+    <string name="signal_hint_native_missing">Native enumeration did not find any tunnel-like interfaces.</string>
+    <string name="signal_hint_java_found">Java network enumeration found interface names that look like VPN or tunnel interfaces.</string>
+    <string name="signal_hint_java_missing">Java network enumeration did not find any tunnel-like interface names.</string>
+
+    <string name="native_details_empty">No interfaces were returned by the native detector.</string>
+    <string name="native_error_format">Native detector error: %1$s</string>
+
+    <string name="apps_none_detected">No VPN-related apps detected.</string>
+    <string name="apps_detected_via_vpn_service">Detected via VpnService query:</string>
+    <string name="apps_check_errors">Check errors (package manager returned unexpected error):</string>
+
+    <string name="section_tun_interfaces">TUN interfaces</string>
+    <string name="section_low_mtu_interfaces">Low-MTU interfaces</string>
+    <string name="section_vpn_routes">VPN network routes</string>
+    <string name="section_vpn_dns_servers">VPN DNS servers</string>
+    <string name="section_dns_all">DNS across visible networks</string>
+    <string name="section_dns_internal">Internal/private-range DNS servers</string>
+    <string name="section_dns_contextual">Cellular private DNS observed (context only)</string>
+    <string name="section_private_dns">Private DNS</string>
+    <string name="section_not_vpn">NET_CAPABILITY_NOT_VPN</string>
+    <string name="section_vpn_bandwidth">VPN bandwidth</string>
+    <string name="section_kernel_routes_v4">Kernel route table (/proc/net/route)</string>
+    <string name="section_kernel_routes_v6">Kernel route table (/proc/net/ipv6_route)</string>
+    <string name="section_vpn_permission">VPN permission</string>
+    <string name="section_lockdown">Always-on / lockdown</string>
+    <string name="section_known_vpn_dns">Known VPN provider DNS</string>
+    <string name="section_work_profile">Work / managed profile</string>
+
+    <string name="private_dns_active">active</string>
+    <string name="private_dns_inactive">inactive</string>
+    <string name="private_dns_with_host">%1$s (%2$s)</string>
+
+    <string name="not_vpn_body">active=%1$s, preferred=%2$s</string>
+
+    <string name="vpn_permission_body">This app holds Android VPN permission (anomalous for a detector).</string>
+    <string name="lockdown_body">VPN present and no validated non-VPN path exists. Lockdown mode is likely active.</string>
+    <string name="managed_profile_body">Running inside a managed profile.</string>
+    <string name="work_profile_count_body">%1$d user profiles detected. VPN apps in other profiles are not visible to this detector.</string>
+
+    <string name="author">cherepavel</string>
+    <string name="repo_url">https://github.com/cherepavel/VPN-Detector</string>
+    <string name="source_code_label">Source code:</string>
+
 </resources>
