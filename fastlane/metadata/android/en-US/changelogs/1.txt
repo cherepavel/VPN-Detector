@@ -1,0 +1,5 @@
+Detect VPN via NetworkCapabilities.TRANSPORT_VPN
+Compare global vs app-level VPN state
+Identify split tunneling / bypass scenarios
+Interface detection (tun0, wg0, etc.)
+Native + Java network enumeration

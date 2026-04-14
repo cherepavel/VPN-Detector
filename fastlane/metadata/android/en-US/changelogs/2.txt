@@ -1,0 +1,5 @@
+Refactored detection engine (moved out of UI)
+Improved architecture and modularity
+Extended VPN detection signals
+Better error handling
+Added application icon

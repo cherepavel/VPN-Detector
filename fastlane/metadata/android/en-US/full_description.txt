@@ -1,0 +1,7 @@
+Research tool for analyzing VPN detection mechanisms on Android.
+
+Features
+- Detect VPN via NetworkCapabilities.TRANSPORT_VPN
+- Analyze active vs global VPN state
+- Interface detection (tun0, wg0)
+- Native + Java network enumeration
