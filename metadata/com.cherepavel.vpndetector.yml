@@ -6,35 +6,14 @@ Source Code: https://github.com/cherepavel/VPN-Detector
 Issue Tracker: https://github.com/cherepavel/VPN-Detector/issues
 
 AutoName: VPN Detector
-Summary: Detects active VPN connections and interfaces on Android
-
-Description: |
-  VPN Detector is a research and diagnostic tool for analyzing VPN detection
-  mechanisms on Android. No root required, no ads, no tracking.
-
-  It shows:
-  * Active VPN interfaces (tun0, wg0, utun, etc.)
-  * Kernel routing table
-  * DNS servers in use
-  * Apps currently using VPN
-  * NetworkCapabilities.TRANSPORT_VPN state
-  * Always-on VPN and Work Profile detection
-  * Local proxy and known VPN DNS detection
-
-  Useful for privacy researchers, developers, and power users who want to
-  understand how applications can detect VPN presence even with split tunneling.
-
-  VPN Detector — диагностический инструмент для анализа механизмов обнаружения
-  VPN на Android. Без root, без рекламы, без слежки.
 
 Builds:
-  - versionName: '1.0'
-    versionCode: 1
-    commit: v1.0
+  - versionName: '0.0.2'
+    versionCode: 2
+    commit: v0.0.2
     subdir: app
     gradle:
       - yes
-    ndk: 27.2.12479018
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
