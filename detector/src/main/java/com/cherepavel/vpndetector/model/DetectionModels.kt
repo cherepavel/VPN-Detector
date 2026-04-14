@@ -68,6 +68,7 @@ data class DetectionSnapshot(
     val knownVpnDnsMatches: List<String>,
     val workProfileCount: Int,
     val isManagedProfile: Boolean,
+    val antiVpnApps: AntiVpnDetectionResult,
     val assessment: DetectionAssessment
 ) {
     val unknownDynamicApps: List<String>

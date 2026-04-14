@@ -4,6 +4,8 @@ import android.content.Context
 import com.cherepavel.vpndetector.BuildConfig
 import com.cherepavel.vpndetector.R
 import com.cherepavel.vpndetector.detector.TunnelNameMatcher
+import com.cherepavel.vpndetector.model.AntiVpnConfidence
+import com.cherepavel.vpndetector.model.AntiVpnScanMode
 import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.model.DetectionStatus
@@ -35,6 +37,7 @@ object ReportExportBuilder {
             add(buildNativeSection(snapshot))
             add(buildJavaSection(snapshot))
             add(buildAppsSection(snapshot))
+            buildAntiVpnAppsSection(snapshot)?.let { add(it) }
             buildAdvancedSignalsSection(snapshot)?.let { add(it) }
         }
 
@@ -352,6 +355,79 @@ object ReportExportBuilder {
                     add(ExportItem.Paragraph("No VPN-related apps detected."))
                 }
             }
+        )
+    }
+
+    private fun buildAntiVpnAppsSection(snapshot: DetectionSnapshot): ExportSection? {
+        val result = snapshot.antiVpnApps
+        if (result.hits.isEmpty() && result.errors.isEmpty()) return null
+
+        val items = buildList {
+            add(
+                ExportItem.Paragraph(
+                    "Apps below are known or suspected to detect VPN state. " +
+                            "Consider disabling your VPN before launching them."
+                )
+            )
+            add(
+                ExportItem.Field(
+                    "Scan mode",
+                    if (result.scanMode == AntiVpnScanMode.DEEP) "deep (static DEX/SO scan)" else "fast (curated list only)"
+                )
+            )
+            if (result.scanMode == AntiVpnScanMode.DEEP) {
+                add(ExportItem.Field("Packages scanned", result.scannedPackageCount.toString()))
+            }
+
+            val confirmed = result.hits.filter { it.confidence == AntiVpnConfidence.CONFIRMED }
+            val likely = result.hits.filter { it.confidence == AntiVpnConfidence.LIKELY }
+            val possible = result.hits.filter { it.confidence == AntiVpnConfidence.POSSIBLE }
+
+            if (confirmed.isNotEmpty()) {
+                add(
+                    ExportItem.ListBlock(
+                        label = "Confirmed (curated list)",
+                        values = confirmed.map { hit ->
+                            val ev = hit.evidence?.let { " — $it" }.orEmpty()
+                            "${hit.label} (${hit.packageName}) [${hit.category}/${hit.severity}]$ev"
+                        }
+                    )
+                )
+            }
+            if (likely.isNotEmpty()) {
+                add(
+                    ExportItem.ListBlock(
+                        label = "Likely (score ≥ ${com.cherepavel.vpndetector.detector.antivpn.AntiVpnSignatures.SCORE_LIKELY})",
+                        values = likely.map { hit ->
+                            "${hit.label} (${hit.packageName}) score=${hit.score} — ${hit.signals.joinToString(", ")}"
+                        }
+                    )
+                )
+            }
+            if (possible.isNotEmpty()) {
+                add(
+                    ExportItem.ListBlock(
+                        label = "Possible",
+                        values = possible.map { hit ->
+                            "${hit.label} (${hit.packageName}) score=${hit.score} — ${hit.signals.joinToString(", ")}"
+                        }
+                    )
+                )
+            }
+
+            if (result.errors.isNotEmpty()) {
+                add(
+                    ExportItem.ListBlock(
+                        label = "Scan errors",
+                        values = result.errors.map { (pkg, err) -> "$pkg: $err" }
+                    )
+                )
+            }
+        }
+
+        return ExportSection(
+            title = "APPS THAT DETECT VPN",
+            items = items
         )
     }
 

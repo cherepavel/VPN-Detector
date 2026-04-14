@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import com.cherepavel.vpndetector.detector.antivpn.AntiVpnAppsDetector
+import com.cherepavel.vpndetector.model.AntiVpnScanMode
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.util.NetworkSignalAnalyzer
 import com.cherepavel.vpndetector.util.TransportInfoFormatter
@@ -16,6 +18,8 @@ class DetectionEngine(
     private val javaInterfacesDetector: JavaInterfacesDetector = JavaInterfacesDetector(),
     private val trackedAppsDetector: TrackedAppsDetector = TrackedAppsDetector(context),
     private val dynamicVpnAppsDetector: DynamicVpnAppsDetector = DynamicVpnAppsDetector(context),
+    private val antiVpnAppsDetector: AntiVpnAppsDetector = AntiVpnAppsDetector(context),
+    private val antiVpnScanMode: AntiVpnScanMode = AntiVpnScanMode.FAST,
 ) : IDetectionEngine {
 
     companion object {
@@ -74,6 +78,7 @@ class DetectionEngine(
         val trackedResult = trackedAppsDetector.detect()
         val installedVpnApps = trackedResult.installed.map { "${it.label} (${it.packageName})" }
         val dynamicVpnApps = dynamicVpnAppsDetector.detect()
+        val antiVpnResult = antiVpnAppsDetector.detect(antiVpnScanMode)
 
         val tunTypeInterfaces = nativeResult.allInterfaces.mapNotNull { block ->
             val firstLine = block.lineSequence().firstOrNull() ?: return@mapNotNull null
@@ -157,6 +162,7 @@ class DetectionEngine(
             knownVpnDnsMatches = knownVpnDnsMatches,
             workProfileCount = workProfileResult.profileCount,
             isManagedProfile = workProfileResult.isManagedProfile,
+            antiVpnApps = antiVpnResult,
             assessment = assessment
         )
     }

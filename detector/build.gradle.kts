@@ -36,4 +36,9 @@ kotlin {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+
+    testImplementation(libs.junit)
+    // org.json.JSONArray is stubbed on the JVM target — pull the real
+    // implementation so unit tests can parse the curated assets JSON.
+    testImplementation("org.json:json:20240303")
 }

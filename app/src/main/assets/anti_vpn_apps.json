@@ -1,0 +1,163 @@
+[
+  {
+    "packageName": "com.netflix.mediaclient",
+    "label": "Netflix",
+    "category": "streaming",
+    "severity": "medium",
+    "evidence": "Public policy: blocks playback / shows proxy error when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.amazon.avod.thirdpartyclient",
+    "label": "Amazon Prime Video",
+    "category": "streaming",
+    "severity": "medium",
+    "evidence": "Public policy: restricts content and blocks known VPN IP ranges."
+  },
+  {
+    "packageName": "com.disney.disneyplus",
+    "label": "Disney+",
+    "category": "streaming",
+    "severity": "medium",
+    "evidence": "Public policy: enforces region via IP, blocks known VPN ranges."
+  },
+  {
+    "packageName": "com.hbo.hbonow",
+    "label": "HBO Max",
+    "category": "streaming",
+    "severity": "medium",
+    "evidence": "Public policy: region enforcement via IP reputation."
+  },
+  {
+    "packageName": "tv.twitch.android.app",
+    "label": "Twitch",
+    "category": "streaming",
+    "severity": "low",
+    "evidence": "Anti-fraud SDKs on mobile client are known to probe VPN status."
+  },
+  {
+    "packageName": "com.dazn",
+    "label": "DAZN",
+    "category": "streaming",
+    "severity": "high",
+    "evidence": "Blocks streams entirely when VPN is detected."
+  },
+  {
+    "packageName": "com.bbc.iplayer.android",
+    "label": "BBC iPlayer",
+    "category": "streaming",
+    "severity": "high",
+    "evidence": "UK-only; blocks on VPN / non-UK IP."
+  },
+  {
+    "packageName": "air.com.hulu.plus",
+    "label": "Hulu",
+    "category": "streaming",
+    "severity": "high",
+    "evidence": "US-only; explicit VPN/proxy block."
+  },
+  {
+    "packageName": "com.pandora.android",
+    "label": "Pandora",
+    "category": "streaming",
+    "severity": "medium",
+    "evidence": "Geo-restricted; VPN/proxy blocked."
+  },
+  {
+    "packageName": "com.spotify.music",
+    "label": "Spotify",
+    "category": "streaming",
+    "severity": "low",
+    "evidence": "Ties account region to IP; can lock accounts on persistent VPN use."
+  },
+  {
+    "packageName": "com.wellsfargo.mobile.android.wellsfargomobile",
+    "label": "Wells Fargo Mobile",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Banking apps commonly refuse login when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.chase.sig.android",
+    "label": "Chase Mobile",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Banking apps commonly refuse login when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.infonow.bofa",
+    "label": "Bank of America",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Banking apps commonly refuse login when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.citi.citimobile",
+    "label": "Citi Mobile",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Banking apps commonly refuse login when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.usaa.mobile.android.usaa",
+    "label": "USAA",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Banking apps commonly refuse login when VPN/proxy is detected."
+  },
+  {
+    "packageName": "com.idamob.tinkoff.android",
+    "label": "T-Bank (Tinkoff)",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Russian banking apps have been observed to restrict login over VPN."
+  },
+  {
+    "packageName": "ru.sberbankmobile",
+    "label": "SberBank Online",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Russian banking apps have been observed to restrict login over VPN."
+  },
+  {
+    "packageName": "ru.vtb24.mobilebanking.android",
+    "label": "VTB",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Russian banking apps have been observed to restrict login over VPN."
+  },
+  {
+    "packageName": "ru.alfabank.mobile.android",
+    "label": "Alfa-Bank",
+    "category": "banking",
+    "severity": "high",
+    "evidence": "Russian banking apps have been observed to restrict login over VPN."
+  },
+  {
+    "packageName": "ru.gosuslugi.pgu",
+    "label": "Gosuslugi",
+    "category": "government",
+    "severity": "high",
+    "evidence": "Russian state services portal; restrictive network posture."
+  },
+  {
+    "packageName": "com.bet365",
+    "label": "bet365",
+    "category": "gambling",
+    "severity": "high",
+    "evidence": "Gambling apps typically require real-IP geolocation and block VPN."
+  },
+  {
+    "packageName": "com.draftkings.sportsbook",
+    "label": "DraftKings Sportsbook",
+    "category": "gambling",
+    "severity": "high",
+    "evidence": "Regulated gambling: strict geo-fencing and VPN blocking."
+  },
+  {
+    "packageName": "com.fanduel.android.sportsbook",
+    "label": "FanDuel Sportsbook",
+    "category": "gambling",
+    "severity": "high",
+    "evidence": "Regulated gambling: strict geo-fencing and VPN blocking."
+  }
+]

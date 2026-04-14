@@ -1,0 +1,120 @@
+name: security-guard
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+# This workflow is the security baseline of the project.
+#
+# The core promise of VPN-Detector — and of the anti-VPN-apps scanner we
+# ship in the `detector/antivpn` package — is that NOTHING the tool sees
+# about the user's network leaves the device. The tool has no
+# `android.permission.INTERNET`, no HTTP client, no telemetry.
+#
+# This CI gate fails the build if anyone (intentionally or accidentally)
+# introduces a regression against that promise.
+
+jobs:
+  permissions-gate:
+    name: Manifest permissions must not grow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject network / surveillance permissions
+        shell: bash
+        run: |
+          set -eu
+          manifest=app/src/main/AndroidManifest.xml
+          blocklist=(
+            "android.permission.INTERNET"
+            "android.permission.ACCESS_WIFI_STATE"
+            "android.permission.CHANGE_WIFI_STATE"
+            "android.permission.READ_PHONE_STATE"
+            "android.permission.READ_PHONE_NUMBERS"
+            "android.permission.FOREGROUND_SERVICE"
+            "android.permission.POST_NOTIFICATIONS"
+            "android.permission.ACCESS_FINE_LOCATION"
+            "android.permission.ACCESS_COARSE_LOCATION"
+            "android.permission.READ_CONTACTS"
+            "android.permission.READ_SMS"
+            "android.permission.RECORD_AUDIO"
+            "android.permission.CAMERA"
+            "android.permission.BIND_VPN_SERVICE"
+          )
+          failed=0
+          for perm in "${blocklist[@]}"; do
+            if grep -F -q "$perm" "$manifest"; then
+              echo "::error file=$manifest::forbidden permission present: $perm"
+              failed=1
+            fi
+          done
+          if [ $failed -ne 0 ]; then
+            echo "This workflow exists to preserve the core security guarantee of VPN-Detector."
+            echo "If you genuinely need one of these permissions, update the audit document"
+            echo "and this workflow in the same PR so the reviewer has to acknowledge it."
+            exit 1
+          fi
+
+  no-network-code:
+    name: No outbound networking code in app/detector
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Grep for forbidden networking primitives
+        shell: bash
+        run: |
+          set -eu
+          # Anything that could open an outbound connection. We lint
+          # only the main source sets — tests are allowed to stub HTTP.
+          paths=(app/src/main detector/src/main)
+          # Pattern list is intentionally broad. False positives should
+          # be surfaced as comments explaining why a match is safe.
+          patterns=(
+            'OkHttpClient'
+            'HttpURLConnection'
+            'okhttp3'
+            'retrofit2'
+            'java\.net\.URL\('
+            'DatagramSocket\('
+            'new Socket\('
+            'Socket\('
+            'FirebaseApp'
+            'Crashlytics'
+            'AnalyticsService'
+            'Amplitude'
+            'Mixpanel'
+            'AppsFlyer'
+          )
+          failed=0
+          for pat in "${patterns[@]}"; do
+            if grep -R -nE --include='*.kt' --include='*.java' --include='*.cpp' "$pat" "${paths[@]}" >/dev/null 2>&1; then
+              echo "::error::forbidden networking / telemetry pattern '$pat' in source:"
+              grep -R -nE --include='*.kt' --include='*.java' --include='*.cpp' "$pat" "${paths[@]}" || true
+              failed=1
+            fi
+          done
+          exit $failed
+
+  anti-vpn-assets-valid:
+    name: anti_vpn_apps.json is well-formed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate curated JSON
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import json, sys, pathlib
+          p = pathlib.Path("app/src/main/assets/anti_vpn_apps.json")
+          data = json.loads(p.read_text())
+          assert isinstance(data, list), "top-level must be a list"
+          for i, entry in enumerate(data):
+              for req in ("packageName", "label"):
+                  assert req in entry, f"entry {i} missing {req}"
+              sev = entry.get("severity", "medium")
+              assert sev in ("low", "medium", "high"), f"entry {i} bad severity {sev!r}"
+          print(f"OK: {len(data)} entries")
+          PY

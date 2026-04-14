@@ -3,6 +3,9 @@ package com.cherepavel.vpndetector.ui
 import android.content.Context
 import com.cherepavel.vpndetector.R
 import com.cherepavel.vpndetector.detector.TunnelNameMatcher
+import com.cherepavel.vpndetector.model.AntiVpnAppHit
+import com.cherepavel.vpndetector.model.AntiVpnConfidence
+import com.cherepavel.vpndetector.model.AntiVpnSeverity
 import com.cherepavel.vpndetector.model.DetectionConfidence
 import com.cherepavel.vpndetector.model.DetectionSnapshot
 import com.cherepavel.vpndetector.model.DetectionStatus
@@ -267,6 +270,8 @@ object ReportFormatter {
                     )
                 )
             }
+
+            buildAntiVpnAppsSection(context, snapshot)?.let { add(it) }
 
             if (snapshot.workProfileCount > 1 || snapshot.isManagedProfile) {
                 add(
@@ -549,6 +554,77 @@ object ReportFormatter {
             normalized.contains("VPN", ignoreCase = true) -> "VPN"
             else -> softWrapToken(normalized)
         }
+    }
+
+    private fun buildAntiVpnAppsSection(
+        context: Context,
+        snapshot: DetectionSnapshot
+    ): DetailSection? {
+        val hits = snapshot.antiVpnApps.hits
+        if (hits.isEmpty()) return null
+
+        // Sort: CONFIRMED first, then LIKELY, then POSSIBLE; within a tier,
+        // HIGH severity first. Gives the user the most actionable items up top.
+        val sorted = hits.sortedWith(
+            compareBy(
+                { confidenceOrder(it.confidence) },
+                { severityOrder(it.severity) },
+                { it.label.lowercase() }
+            )
+        )
+
+        val body = buildString {
+            appendLine(context.getString(R.string.anti_vpn_section_warning))
+            appendLine()
+            for (hit in sorted) {
+                appendLine(formatAntiVpnHitLine(context, hit))
+            }
+        }.trimEnd()
+
+        val state = when {
+            sorted.any {
+                it.confidence == AntiVpnConfidence.CONFIRMED ||
+                        it.confidence == AntiVpnConfidence.LIKELY
+            } -> SignalState.POSITIVE // red — user should act
+            else -> SignalState.WARNING // orange — informational
+        }
+
+        return DetailSection(
+            title = context.getString(R.string.anti_vpn_section_title),
+            body = body,
+            state = state
+        )
+    }
+
+    private fun formatAntiVpnHitLine(context: Context, hit: AntiVpnAppHit): String {
+        val confidence = when (hit.confidence) {
+            AntiVpnConfidence.CONFIRMED -> context.getString(R.string.anti_vpn_confidence_confirmed)
+            AntiVpnConfidence.LIKELY -> context.getString(R.string.anti_vpn_confidence_likely)
+            AntiVpnConfidence.POSSIBLE -> context.getString(R.string.anti_vpn_confidence_possible)
+        }
+        val severity = when (hit.severity) {
+            AntiVpnSeverity.HIGH -> context.getString(R.string.anti_vpn_severity_high)
+            AntiVpnSeverity.MEDIUM -> context.getString(R.string.anti_vpn_severity_medium)
+            AntiVpnSeverity.LOW -> context.getString(R.string.anti_vpn_severity_low)
+        }
+        val signals = if (hit.signals.isEmpty()) {
+            ""
+        } else {
+            " — " + hit.signals.joinToString(", ")
+        }
+        return "• ${hit.label} (${hit.packageName}) [$confidence/$severity]$signals"
+    }
+
+    private fun confidenceOrder(c: AntiVpnConfidence): Int = when (c) {
+        AntiVpnConfidence.CONFIRMED -> 0
+        AntiVpnConfidence.LIKELY -> 1
+        AntiVpnConfidence.POSSIBLE -> 2
+    }
+
+    private fun severityOrder(s: AntiVpnSeverity): Int = when (s) {
+        AntiVpnSeverity.HIGH -> 0
+        AntiVpnSeverity.MEDIUM -> 1
+        AntiVpnSeverity.LOW -> 2
     }
 
     private fun softWrapToken(value: String): String {
