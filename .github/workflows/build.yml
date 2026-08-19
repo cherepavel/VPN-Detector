@@ -1,0 +1,63 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, dev ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Install NDK 27.2.12479018
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Rename debug APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/vpn-detector-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: vpn-detector
+          path: app/build/outputs/apk/debug/vpn-detector-debug.apk
+
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        run: ./gradlew assembleRelease
+
+      - name: Upload release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-apk-${{ github.ref_name }}
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2.3.2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
