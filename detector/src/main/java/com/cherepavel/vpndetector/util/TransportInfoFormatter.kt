@@ -19,7 +19,7 @@ object TransportInfoFormatter {
             .takeIf { it.isNotBlank() }
             .takeIf { !it.equals("WifiInfo", ignoreCase = true) }
             .takeIf {
-                !it.equals("VcnTransportInfo", ignoreCase = true) ||
+                !it.equals("VpnTransportInfo", ignoreCase = true) ||
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
             }
     }
